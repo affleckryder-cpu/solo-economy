@@ -41,6 +41,11 @@ default — so a market you wrecked on Monday is worth revisiting by Wednesday.
 Bulk trades walk the curve one unit at a time, so selling 64 at once pays exactly what selling 64
 one-at-a-time would. There is never a reason to click 64 times.
 
+Each unit is priced *after* its own effect on stock — a sale into the glut it just made, a purchase
+into the shortage it just caused. Pricing before the move instead let a sale land one step up the
+curve from the purchase before it, and in a thin enough market that step was bigger than the spread:
+buy one, sell it back, keep the difference, forever.
+
 `baseStock` is `marketDepth * basePrice^-depthPriceExponent`, so cheap goods get deeper markets than
 expensive ones, but only sub-linearly. A stack of diamonds moves the diamond price about 15%; a
 stack of dirt barely registers, but a double chest of it moves dirt about 27%.
@@ -77,8 +82,9 @@ route through:
 | buy item → uncraft → sell parts | `raw * markup^steps * (1+spread)` | `raw * (1-spread)` |
 | buy item → sell item | `raw * markup^steps * (1+spread)` | `raw * (1-spread)` |
 
-No configuration can invert that, because `markup >= 1` and `(1+spread) > (1-spread)`. `craftMarkup`
-is now pure flavour — it decides what you pay for the convenience of not crafting something
+That holds for any item priced through its own recipe. It does **not** automatically hold for an item
+that is hand-priced *and* craftable, because then it has two independent prices — see the market
+audit below. `craftMarkup` is pure flavour — it decides what you pay for the convenience of not crafting something
 yourself, and cannot open a loop at any value.
 
 **This replaced an earlier design** where every item had its own price derived from its recipe at
@@ -91,12 +97,30 @@ The same reasoning covers other classic loops:
 
 - **Uncrafting** (block → 9 ingots) loses money for the same reason, in reverse.
 - **Recipes that return a container** (cake and its three milk buckets) subtract the returned
-  bucket's value, so the cake isn't priced as if you'd thrown three buckets away.
+  buckets. Because a milk bucket is hand-priced and has no iron in its own bundle, cake's bundle
+  holds *minus* nine raw iron. An earlier version dropped negative quantities, which priced cake as
+  though the buckets were destroyed — crafting cake from bought milk made 7.60 emeralds profit.
 - **Emeralds themselves** are untradeable — you deposit and withdraw them instead. Otherwise
   crafting emerald blocks and selling them would be a loop straight out of the currency.
 - **Water buckets** are untradeable, because water is free and buckets are not.
 
 Money is supposed to come from *gathering*: mines, farms, mob grinders. Not from arbitrage.
+
+### The market audit
+
+Every time the catalogue is built — server start and every `/reload` — every crafting, smelting and
+stonecutting recipe is checked: at base prices and the narrowest spread in the game, does buying the
+inputs, crafting, and selling the result make money? Any that do are logged as errors naming the
+recipe and the profit. The usual cause is a datapack hand-pricing something that can also be
+crafted. A clean start logs:
+
+```
+Market audit: no recipe can be crafted and sold at a profit
+```
+
+The audit is deliberately about **base** prices. When a farm floods one market, crafting your own
+output into a different item can pay better than selling it raw — that is choosing a better outlet
+for goods you gathered, bounded by what the farm produces, not money from nothing.
 
 ### What the market won't touch
 
@@ -133,6 +157,24 @@ Prices reload with `/reload` and the whole catalogue is rebuilt from the current
 `cobblestone` and `stone`) makes the second one a primitive too, with its own price and its own
 stock — so the pair can drift apart and reopen exactly the arbitrage that bundles exist to close.
 Seed the input only and let the output be a bundle of it.
+
+## Tests
+
+```bash
+JAVA_HOME="/c/Program Files/Java/jdk-20" ./gradlew runGameTestServer
+```
+
+Runs five GameTests headlessly against the real recipe set, and exits non-zero on failure:
+
+| test | guards against |
+| --- | --- |
+| no recipe is profitable at any spread | hand-priced craftables (lead +3.55), cake's dropped bucket refund (+7.60) |
+| buying then selling back always loses | per-item round trips, every tradeable item, 1 and 64 units |
+| thin-market round trips still lose | pricing units before their own stock move, with the price cap lifted |
+| crafted items track their materials | per-item stock that let a diamond block drift from nine diamonds |
+| market stock survives save and recovers | persistence and the recovery rate |
+
+Each test was confirmed to fail when its bug was put back.
 
 ## Building
 
