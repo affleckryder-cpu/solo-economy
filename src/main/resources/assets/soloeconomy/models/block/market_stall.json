@@ -1,0 +1,8 @@
+{
+  "parent": "minecraft:block/orientable",
+  "textures": {
+    "top": "soloeconomy:block/market_stall_top",
+    "front": "soloeconomy:block/market_stall_front",
+    "side": "soloeconomy:block/market_stall_side"
+  }
+}

@@ -1,0 +1,8 @@
+{
+  "permissions": {
+    "allow": [
+      "PowerShell(java -version; Write-Output \"---\"; \\(Get-Command gradle -ErrorAction SilentlyContinue\\).Source; Write-Output \"---JAVA_HOME---\"; $env:JAVA_HOME)",
+      "PowerShell(Get-ChildItem \"$env:USERPROFILE\\\\.jdks\" -ErrorAction SilentlyContinue | Select-Object Name; Write-Output \"---gradle caches---\"; Get-ChildItem \"$env:USERPROFILE\\\\.gradle\\\\wrapper\\\\dists\" -ErrorAction SilentlyContinue | Select-Object Name)"
+    ]
+  }
+}

@@ -1,0 +1,8 @@
+{
+  "variants": {
+    "facing=north": { "model": "soloeconomy:block/market_stall" },
+    "facing=east":  { "model": "soloeconomy:block/market_stall", "y": 90 },
+    "facing=south": { "model": "soloeconomy:block/market_stall", "y": 180 },
+    "facing=west":  { "model": "soloeconomy:block/market_stall", "y": 270 }
+  }
+}
