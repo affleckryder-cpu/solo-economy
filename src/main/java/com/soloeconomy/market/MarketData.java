@@ -110,13 +110,17 @@ public class MarketData extends SavedData {
         return Math.min(max, Math.max(min, price));
     }
 
-    /** Value of one unit in raw materials, at the given primitive stock levels. */
+    /**
+     * Value of one unit in raw materials, at the given primitive stock levels. Never negative: a
+     * bundle with a returned container subtracts that container's value, and if the container's
+     * materials have spiked far enough the item is simply worth nothing.
+     */
     private static double rawValue(MarketCatalog.Bundle bundle, Map<Item, Double> stocks) {
         double total = 0.0D;
         for (Map.Entry<Item, Double> part : bundle.contents().entrySet()) {
             total += part.getValue() * primitivePrice(part.getKey(), stocks.get(part.getKey()));
         }
-        return total;
+        return Math.max(0.0D, total);
     }
 
     /** The assembly fee charged on top of materials when buying something pre-made. */
@@ -164,6 +168,9 @@ public class MarketData extends SavedData {
         double weighted = 0.0D;
         double weight = 0.0D;
         for (Map.Entry<Item, Double> part : bundle.contents().entrySet()) {
+            if (part.getValue() <= 0.0D) {
+                continue; // a returned container says nothing about how well supplied the item is
+            }
             Item primitive = part.getKey();
             double share = part.getValue() * catalog.primitivePrice(primitive);
             double base = catalog.baseStock(primitive);

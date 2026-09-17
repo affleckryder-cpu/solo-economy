@@ -70,6 +70,7 @@ public final class MarketCatalog {
     private final Map<Item, Double> primitivePrices;
     private final Map<Item, Bundle> bundles;
     private final List<Item> sortedItems;
+    private List<MarketAudit.LoopRisk> loopRisks = List.of();
 
     private MarketCatalog(Map<Item, Double> primitivePrices, Map<Item, Bundle> bundles) {
         this.primitivePrices = primitivePrices;
@@ -141,6 +142,11 @@ public final class MarketCatalog {
         return bundles.size();
     }
 
+    /** Recipes found to pay more when sold than their inputs cost. Empty in a healthy catalogue. */
+    public List<MarketAudit.LoopRisk> loopRisks() {
+        return loopRisks;
+    }
+
     // ------------------------------------------------------------------
     // Construction
     // ------------------------------------------------------------------
@@ -180,19 +186,50 @@ public final class MarketCatalog {
                         + "{} tradeable in total",
                 primitives.size(), bundles.size() - primitives.size(), bundles.size());
 
-        return new MarketCatalog(primitives, bundles);
+        MarketCatalog catalog = new MarketCatalog(primitives, bundles);
+        catalog.loopRisks = MarketAudit.findLoops(catalog, nodes, EconomyConfig.INSTANCE.minimumSpread());
+        reportLoops(catalog.loopRisks);
+        return catalog;
+    }
+
+    /**
+     * Loud on purpose. A loop here is a way to print emeralds, and the usual cause is a datapack
+     * giving a hand price to something that can also be crafted - which is easy to do by accident.
+     */
+    private static void reportLoops(List<MarketAudit.LoopRisk> risks) {
+        if (risks.isEmpty()) {
+            SoloEconomy.LOGGER.info("Market audit: no recipe can be crafted and sold at a profit");
+            return;
+        }
+        SoloEconomy.LOGGER.error(
+                "Market audit found {} recipe(s) that make money from nothing. Players can buy the inputs, "
+                        + "craft, and sell at a profit. Usually this means base_prices.json gives a hand price "
+                        + "to an item that can also be crafted - remove that entry and let it be priced from "
+                        + "its recipe.", risks.size());
+        int shown = 0;
+        for (MarketAudit.LoopRisk risk : risks) {
+            if (shown++ >= 25) {
+                SoloEconomy.LOGGER.error("  ...and {} more", risks.size() - 25);
+                break;
+            }
+            SoloEconomy.LOGGER.error("  {}", risk.describe());
+        }
     }
 
     /**
      * Bellman-Ford style relaxation to get a rough price for everything, and with it the cheapest
      * recipe for each item. Only the recipe choice survives into the live catalogue.
+     *
+     * <p>Paths are compared on raw material cost alone, with no assembly fee. Selling pays raw
+     * value, so the bundle has to be the raw-cheapest way to make an item: pick a recipe that is
+     * cheaper only because it has fewer crafting steps, and a deeper recipe with cheaper materials
+     * becomes a way to craft the item for less than it sells for.
      */
     private static void relax(Map<Item, Double> estimates,
                               Map<Item, CraftPath> paths,
                               List<CraftPath> nodes,
                               Set<Item> pinned) {
         boolean derive = EconomyConfig.INSTANCE.deriveUnpricedItems.get();
-        double markup = EconomyConfig.INSTANCE.craftMarkup.get();
         Map<Item, Double> bestPathCost = new HashMap<>();
 
         for (int pass = 0; pass < MAX_RELAXATION_PASSES; pass++) {
@@ -207,7 +244,7 @@ public final class MarketCatalog {
                     for (Item choice : choices) {
                         Double price = estimates.get(choice);
                         if (price != null) {
-                            best = Math.min(best, price);
+                            best = Math.min(best, price - remainderEstimate(choice, estimates));
                         }
                     }
                     if (best == Double.MAX_VALUE) {
@@ -231,7 +268,7 @@ public final class MarketCatalog {
                 if (!derive || pinned.contains(node.result())) {
                     continue;
                 }
-                double price = Math.max(MIN_PRICE, unitCost * markup);
+                double price = Math.max(MIN_PRICE, unitCost);
                 Double current = estimates.get(node.result());
                 if (current == null || price < current - 1.0e-9D) {
                     estimates.put(node.result(), price);
@@ -243,6 +280,15 @@ public final class MarketCatalog {
                 break;
             }
         }
+    }
+
+    /** Estimated value of the container an ingredient leaves behind in the crafting grid. */
+    private static double remainderEstimate(Item ingredient, Map<Item, Double> estimates) {
+        ItemStack remainder = new ItemStack(ingredient).getCraftingRemainingItem();
+        if (remainder.isEmpty()) {
+            return 0.0D;
+        }
+        return estimates.getOrDefault(remainder.getItem(), 0.0D) * remainder.getCount();
     }
 
     /**
@@ -346,14 +392,20 @@ public final class MarketCatalog {
         }
 
         double divisor = Math.max(1, path.resultCount());
+        // Quantities can be negative. Cake uses three milk buckets and hands the buckets back, but
+        // a milk bucket is a hand-priced primitive with no iron inside it, so the returned buckets
+        // come out as minus nine raw iron. Dropping that - as this code once did - prices cake as
+        // though the buckets were destroyed, and crafting cake from bought milk made 7.60 profit.
         Map<Item, Double> normalised = new HashMap<>();
+        double baseValue = 0.0D;
         for (Map.Entry<Item, Double> entry : contents.entrySet()) {
             double qty = entry.getValue() / divisor;
-            if (qty > 1.0e-6D) {
+            if (Math.abs(qty) > 1.0e-6D) {
                 normalised.put(entry.getKey(), qty);
+                baseValue += qty * primitives.getOrDefault(entry.getKey(), 0.0D);
             }
         }
-        if (normalised.isEmpty()) {
+        if (normalised.isEmpty() || baseValue <= 0.0D) {
             if (!subCycle[0]) {
                 failed.add(item);
             }
@@ -429,7 +481,9 @@ public final class MarketCatalog {
     /**
      * What one unit of an item is worth in raw materials.
      *
-     * @param contents   primitive item to quantity needed per unit; a primitive maps to itself at 1
+     * @param contents   primitive item to quantity needed per unit; a primitive maps to itself at 1.
+     *                   A quantity is negative when the recipe returns a container that the
+     *                   ingredient's own bundle does not contain, like the buckets from cake.
      * @param craftSteps how deep the crafting chain was, which sets the assembly fee on buying
      */
     public record Bundle(Map<Item, Double> contents, int craftSteps) {
