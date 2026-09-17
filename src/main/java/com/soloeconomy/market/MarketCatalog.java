@@ -71,6 +71,7 @@ public final class MarketCatalog {
     private final Map<Item, Bundle> bundles;
     private final List<Item> sortedItems;
     private List<MarketAudit.LoopRisk> loopRisks = List.of();
+    private List<CraftPath> recipes = List.of();
 
     private MarketCatalog(Map<Item, Double> primitivePrices, Map<Item, Bundle> bundles) {
         this.primitivePrices = primitivePrices;
@@ -142,6 +143,11 @@ public final class MarketCatalog {
         return bundles.size();
     }
 
+    /** Every recipe the catalogue was built from, for re-auditing under other assumptions. */
+    public List<CraftPath> recipes() {
+        return recipes;
+    }
+
     /** Recipes found to pay more when sold than their inputs cost. Empty in a healthy catalogue. */
     public List<MarketAudit.LoopRisk> loopRisks() {
         return loopRisks;
@@ -187,6 +193,7 @@ public final class MarketCatalog {
                 primitives.size(), bundles.size() - primitives.size(), bundles.size());
 
         MarketCatalog catalog = new MarketCatalog(primitives, bundles);
+        catalog.recipes = List.copyOf(nodes);
         catalog.loopRisks = MarketAudit.findLoops(catalog, nodes, EconomyConfig.INSTANCE.minimumSpread());
         reportLoops(catalog.loopRisks);
         return catalog;

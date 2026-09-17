@@ -138,21 +138,12 @@ public class MarketData extends SavedData {
 
     /** What one more unit would cost to buy right now, assembly fee and spread included. */
     public double spotBuyPrice(Item item, long gameTime, double spread) {
-        MarketCatalog.Bundle bundle = MarketCatalog.active().bundle(item);
-        if (bundle == null) {
-            return 0.0D;
-        }
-        return rawValue(bundle, snapshotStocks(bundle, gameTime))
-                * assemblyMultiplier(bundle) * (1.0D + spread);
+        return quoteBuy(item, 1, gameTime, spread).exactValue();
     }
 
     /** What one more unit would pay out right now. Materials only - the market pays no wages. */
     public double spotSellPrice(Item item, long gameTime, double spread) {
-        MarketCatalog.Bundle bundle = MarketCatalog.active().bundle(item);
-        if (bundle == null) {
-            return 0.0D;
-        }
-        return rawValue(bundle, snapshotStocks(bundle, gameTime)) * (1.0D - spread);
+        return quoteSell(item, 1, gameTime, spread).exactValue();
     }
 
     /**
@@ -183,6 +174,12 @@ public class MarketData extends SavedData {
     /**
      * Walk the price curve one unit at a time so bulk trades move the price as they execute.
      * Selling 64 at once and selling 64 one-at-a-time therefore pay exactly the same.
+     *
+     * <p>Each unit is priced <em>after</em> its own effect on stock, on both sides. That is the
+     * worse price for the trader whichever way they trade: a sale is priced into the glut it just
+     * created, a purchase into the shortage it just caused. Pricing before the move instead lets a
+     * sale land one step up the curve from the purchase that preceded it, and in a thin market
+     * that one step outruns the spread - buy one, sell one, and pocket the difference, forever.
      */
     public Quote quoteSell(Item item, int count, long gameTime, double spread) {
         MarketCatalog.Bundle bundle = MarketCatalog.active().bundle(item);
@@ -191,16 +188,12 @@ public class MarketData extends SavedData {
         }
 
         Map<Item, Double> stocks = snapshotStocks(bundle, gameTime);
-        double first = rawValue(bundle, stocks) * (1.0D - spread);
         double total = 0.0D;
-
         for (int i = 0; i < count; i++) {
-            total += rawValue(bundle, stocks) * (1.0D - spread);
             addToStocks(bundle, stocks, 1.0D);
+            total += rawValue(bundle, stocks) * (1.0D - spread);
         }
-
-        return new Quote(count, total, (long) Math.floor(total), first,
-                rawValue(bundle, stocks) * (1.0D - spread), stocks);
+        return new Quote(count, total, (long) Math.floor(total), stocks);
     }
 
     public Quote quoteBuy(Item item, int count, long gameTime, double spread) {
@@ -211,18 +204,15 @@ public class MarketData extends SavedData {
 
         double assembly = assemblyMultiplier(bundle);
         Map<Item, Double> stocks = snapshotStocks(bundle, gameTime);
-        double first = rawValue(bundle, stocks) * assembly * (1.0D + spread);
         double total = 0.0D;
-
         for (int i = 0; i < count; i++) {
-            total += rawValue(bundle, stocks) * assembly * (1.0D + spread);
             addToStocks(bundle, stocks, -1.0D);
+            total += rawValue(bundle, stocks) * assembly * (1.0D + spread);
         }
 
         // Round buys up so a fractional price can never be exploited down to free.
         long cost = Math.max(1L, (long) Math.ceil(total));
-        return new Quote(count, total, cost, first,
-                rawValue(bundle, stocks) * assembly * (1.0D + spread), stocks);
+        return new Quote(count, total, cost, stocks);
     }
 
     /**
@@ -241,8 +231,8 @@ public class MarketData extends SavedData {
         int best = 0;
 
         for (int count = 1; count <= limit; count++) {
-            spent += rawValue(bundle, stocks) * assembly * (1.0D + spread);
             addToStocks(bundle, stocks, -1.0D);
+            spent += rawValue(bundle, stocks) * assembly * (1.0D + spread);
             if (Math.max(1.0D, Math.ceil(spent)) > budget) {
                 break;
             }
@@ -323,15 +313,13 @@ public class MarketData extends SavedData {
     /**
      * The result of pricing a trade before it happens.
      *
-     * @param emeralds  whole emeralds actually paid or received
-     * @param unitFirst price of the first unit in the trade
-     * @param unitLast  price the next unit would go for after this trade lands
-     * @param endStocks primitive stock levels this trade would leave behind
+     * @param exactValue the trade's value before rounding to whole emeralds
+     * @param emeralds   whole emeralds actually paid or received
+     * @param endStocks  primitive stock levels this trade would leave behind
      */
-    public record Quote(int count, double exactValue, long emeralds,
-                        double unitFirst, double unitLast, Map<Item, Double> endStocks) {
+    public record Quote(int count, double exactValue, long emeralds, Map<Item, Double> endStocks) {
 
-        public static final Quote EMPTY = new Quote(0, 0.0D, 0L, 0.0D, 0.0D, Map.of());
+        public static final Quote EMPTY = new Quote(0, 0.0D, 0L, Map.of());
 
         public boolean isEmpty() {
             return count <= 0;

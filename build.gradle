@@ -26,6 +26,11 @@ neoForge {
             programArgument '--nogui'
             systemProperty 'neoforge.enabledGameTestNamespaces', mod_id
         }
+        // Runs every @GameTest in the mod headlessly, then exits non-zero if any failed.
+        gameTestServer {
+            type = "gameTestServer"
+            systemProperty 'neoforge.enabledGameTestNamespaces', mod_id
+        }
         configureEach {
             gameDirectory = file('run')
             logLevel = org.slf4j.event.Level.DEBUG
