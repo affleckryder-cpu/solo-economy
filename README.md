@@ -58,7 +58,7 @@ cobblestone a 40,000-unit market needing half a million sales to shift. The econ
 "Sell anything, buy anything" is trivially exploitable if every item has its own independent price,
 because the prices drift apart. So most items don't have one.
 
-`base_prices.json` seeds 234 **primitives** — things you dig, farm, kill or loot for. They are the
+`base_prices.json` seeds 225 **primitives** — things you dig, farm, kill or loot for. They are the
 only items with a price and a stock level of their own. Every other item is stored as a **bundle**:
 the sack of primitives you would have to gather to make one, worked out by expanding its cheapest
 recipe all the way down. A diamond block is not an item priced near nine diamonds; as far as the
@@ -212,8 +212,8 @@ above were measured on.
 A dev server boots clean with no errors and reports:
 
 ```
-Loaded 234 seed prices and 39 untradeable entries
-Market catalog built: 234 primitives priced by hand, 710 items priced as bundles of them,
+Loaded 225 seed prices and 39 untradeable entries
+Market catalog built: 225 primitives priced by hand, 719 items priced as bundles of them,
 944 tradeable in total
 ```
 
