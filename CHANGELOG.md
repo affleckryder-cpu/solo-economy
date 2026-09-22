@@ -1,3 +1,16 @@
+# Solo Economy 0.1.1
+
+**Minecraft 1.21.1 · NeoForge (built on 21.1.209) · Java 21**
+
+## Fixed
+
+- **Prices under one emerald are now charged properly.** Balances are tracked to two decimal places, so a block worth 0.05 costs 0.05 instead of rounding up to a whole emerald. Selling cheap items no longer pays nothing.
+- Your balance and all trade totals now show decimals where they have them.
+
+Existing balances carry over automatically the first time you log in.
+
+---
+
 # Solo Economy 0.1.0
 
 **Minecraft 1.21.1 · NeoForge (built on 21.1.209) · Java 21**

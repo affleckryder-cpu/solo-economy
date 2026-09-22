@@ -3,6 +3,7 @@ package com.soloeconomy.gametest;
 import com.soloeconomy.SoloEconomy;
 import com.soloeconomy.config.EconomyConfig;
 import com.soloeconomy.market.BasePriceLoader;
+import com.soloeconomy.market.EconomyAccount;
 import com.soloeconomy.market.MarketAudit;
 import com.soloeconomy.market.MarketCatalog;
 import com.soloeconomy.market.MarketData;
@@ -167,6 +168,41 @@ public final class EconomyGameTests {
         if (after >= before) {
             helper.fail(String.format("Dumping diamond blocks left the diamond price at %.3f (was %.3f)",
                     after, before));
+        }
+        helper.succeed();
+    }
+
+    /**
+     * Cheap things must cost what they are worth, not a whole emerald.
+     *
+     * <p>Guards against: balances held in whole emeralds, which rounded every purchase up to at
+     * least 1 and every sale of anything cheap down to 0.
+     */
+    @GameTest(template = TEMPLATE)
+    public static void cheapItemsCostFractionsOfAnEmerald(GameTestHelper helper) {
+        buildCatalog(helper);
+        double spread = EconomyConfig.INSTANCE.spread.get();
+        MarketData market = new MarketData();
+
+        // Charged amounts must be the real price in hundredths, not rounded to whole emeralds.
+        MarketData.Quote bought = market.quoteBuy(Items.DIRT, 1, 0L, spread);
+        long expected = (long) Math.ceil(bought.exactValue() * EconomyAccount.CENTS_PER_EMERALD);
+        if (bought.cents() != expected) {
+            helper.fail(String.format("One dirt is worth %.4f emeralds, so it should cost %d cents, charged %d",
+                    bought.exactValue(), expected, bought.cents()));
+        }
+        if (bought.cents() >= EconomyAccount.CENTS_PER_EMERALD) {
+            helper.fail("One dirt cost a whole emerald or more: " + bought.cents() + " cents");
+        }
+
+        MarketData.Quote sold = market.quoteSell(Items.DIRT, 8, 0L, spread);
+        if (sold.cents() <= 0L) {
+            helper.fail("Selling 8 dirt paid nothing");
+        }
+
+        if (!EconomyAccount.format(1234L).equals("12.34") || !EconomyAccount.format(1200L).equals("12")) {
+            helper.fail("Balance formatting is wrong: " + EconomyAccount.format(1234L)
+                    + " and " + EconomyAccount.format(1200L));
         }
         helper.succeed();
     }

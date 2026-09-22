@@ -19,7 +19,18 @@ public final class ModAttachments {
     public static final DeferredRegister<AttachmentType<?>> ATTACHMENT_TYPES =
             DeferredRegister.create(NeoForgeRegistries.Keys.ATTACHMENT_TYPES, SoloEconomy.MOD_ID);
 
-    public static final Supplier<AttachmentType<Long>> BALANCE = ATTACHMENT_TYPES.register("balance",
+    /** The account, in hundredths of an emerald. Money is never stored as a fraction. */
+    public static final Supplier<AttachmentType<Long>> BALANCE_CENTS = ATTACHMENT_TYPES.register("balance_cents",
+            () -> AttachmentType.builder(() -> 0L)
+                    .serialize(Codec.LONG)
+                    .copyOnDeath()
+                    .build());
+
+    /**
+     * Balances from 0.1.0, in whole emeralds. Only read once, to convert an existing account;
+     * see ServerEvents. Remove after a release or two, once nobody is upgrading from 0.1.0.
+     */
+    public static final Supplier<AttachmentType<Long>> LEGACY_BALANCE = ATTACHMENT_TYPES.register("balance",
             () -> AttachmentType.builder(() -> 0L)
                     .serialize(Codec.LONG)
                     .copyOnDeath()

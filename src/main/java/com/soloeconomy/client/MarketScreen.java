@@ -1,5 +1,6 @@
 package com.soloeconomy.client;
 
+import com.soloeconomy.market.EconomyAccount;
 import com.soloeconomy.menu.MarketMenu;
 import com.soloeconomy.network.Listing;
 import com.soloeconomy.network.MarketQueryPayload;
@@ -450,13 +451,13 @@ public class MarketScreen extends AbstractContainerScreen<MarketMenu> {
         Component sell = quote.sellCount() <= 0
                 ? Component.translatable("gui.soloeconomy.preview_none")
                 : Component.translatable("gui.soloeconomy.preview_sell",
-                        quote.sellCount(), quote.sellTotal());
+                        quote.sellCount(), EconomyAccount.format(quote.sellTotal()));
         graphics.drawString(font, sell, x, y, quote.sellCount() <= 0 ? COLOR_MUTED : COLOR_SELL, false);
 
         Component buy = quote.buyCount() <= 0
                 ? Component.translatable("gui.soloeconomy.preview_broke")
                 : Component.translatable("gui.soloeconomy.preview_buy",
-                        quote.buyCount(), quote.buyTotal());
+                        quote.buyCount(), EconomyAccount.format(quote.buyTotal()));
         String buyText = buy.getString();
         graphics.drawString(font, buyText, leftPos + imageWidth - 8 - font.width(buyText), y,
                 quote.buyCount() <= 0 ? COLOR_DENIED : COLOR_BUY, false);
@@ -486,7 +487,7 @@ public class MarketScreen extends AbstractContainerScreen<MarketMenu> {
         graphics.drawString(font, playerInventoryTitle, inventoryLabelX, inventoryLabelY, COLOR_MUTED, false);
 
         String balance = Component.translatable("gui.soloeconomy.balance",
-                ClientMarketState.balance()).getString();
+                EconomyAccount.format(ClientMarketState.balance())).getString();
         graphics.drawString(font, balance, imageWidth - 8 - font.width(balance), 6, COLOR_SELL, false);
     }
 

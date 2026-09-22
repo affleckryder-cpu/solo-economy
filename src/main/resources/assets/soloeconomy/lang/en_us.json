@@ -25,7 +25,7 @@
   "message.soloeconomy.bought": "Bought %s %s for %s emeralds.",
   "message.soloeconomy.sold": "Sold %s %s for %s emeralds.",
   "message.soloeconomy.none_to_sell": "You have no %s to sell.",
-  "message.soloeconomy.worthless": "%s is not worth a whole emerald - try selling more at once.",
+  "message.soloeconomy.worthless": "%s is worth too little to sell - try selling more at once.",
   "message.soloeconomy.no_emeralds": "You have no emeralds to deposit.",
   "message.soloeconomy.no_balance": "Your account is empty.",
   "message.soloeconomy.deposited": "Deposited %s emeralds.",

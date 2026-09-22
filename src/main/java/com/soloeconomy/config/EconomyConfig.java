@@ -84,7 +84,7 @@ public final class EconomyConfig {
                 .define("deriveUnpricedItems", true);
 
         startingBalance = builder
-                .comment("Emeralds credited to a player's account the first time they open a stall.")
+                .comment("Whole emeralds credited to a player's account the first time they log in.")
                 .defineInRange("startingBalance", 0, 0, 1_000_000);
 
         brokerSpreadMultiplier = builder

@@ -2,6 +2,8 @@ package com.soloeconomy.client;
 
 import net.minecraft.client.DeltaTracker;
 import net.minecraft.client.Minecraft;
+import com.soloeconomy.market.EconomyAccount;
+
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
@@ -30,7 +32,7 @@ public final class BalanceHud {
             return;
         }
 
-        String text = Long.toString(ClientMarketState.balance());
+        String text = EconomyAccount.format(ClientMarketState.balance());
         int textWidth = minecraft.font.width(text);
         int boxWidth = 22 + textWidth + 6;
         int x = graphics.guiWidth() - boxWidth - PADDING;

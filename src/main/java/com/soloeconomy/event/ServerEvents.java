@@ -55,9 +55,15 @@ public final class ServerEvents {
         if (!(event.getEntity() instanceof ServerPlayer player)) {
             return;
         }
-        // An absent attachment means this player has never had an account before.
-        if (!player.hasData(ModAttachments.BALANCE.get())) {
-            EconomyAccount.setBalance(player, EconomyConfig.INSTANCE.startingBalance.get());
+        if (player.hasData(ModAttachments.LEGACY_BALANCE.get())) {
+            // 0.1.0 stored whole emeralds. Convert once, then drop the old attachment.
+            long emeralds = player.getData(ModAttachments.LEGACY_BALANCE.get());
+            player.removeData(ModAttachments.LEGACY_BALANCE.get());
+            EconomyAccount.setBalance(player, emeralds * EconomyAccount.CENTS_PER_EMERALD);
+        } else if (!player.hasData(ModAttachments.BALANCE_CENTS.get())) {
+            // An absent attachment means this player has never had an account before.
+            EconomyAccount.setBalance(player,
+                    EconomyConfig.INSTANCE.startingBalance.get() * EconomyAccount.CENTS_PER_EMERALD);
         } else {
             EconomyAccount.sync(player);
         }

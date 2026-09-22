@@ -18,13 +18,24 @@ public final class EconomyAccount {
     private EconomyAccount() {
     }
 
+    /** Hundredths of an emerald per emerald. Balances are integers so money never drifts. */
+    public static final long CENTS_PER_EMERALD = 100L;
+
+    /** The account balance, in hundredths of an emerald. */
     public static long balance(Player player) {
-        return player.getData(ModAttachments.BALANCE.get());
+        return player.getData(ModAttachments.BALANCE_CENTS.get());
     }
 
-    public static void setBalance(Player player, long amount) {
-        player.setData(ModAttachments.BALANCE.get(), Math.max(0L, amount));
+    public static void setBalance(Player player, long cents) {
+        player.setData(ModAttachments.BALANCE_CENTS.get(), Math.max(0L, cents));
         sync(player);
+    }
+
+    /** "12", or "12.34" when there are odd cents. Whole amounts don't need the decimals. */
+    public static String format(long cents) {
+        long whole = cents / CENTS_PER_EMERALD;
+        long part = Math.abs(cents % CENTS_PER_EMERALD);
+        return part == 0L ? Long.toString(whole) : String.format("%d.%02d", whole, part);
     }
 
     public static void deposit(Player player, long amount) {

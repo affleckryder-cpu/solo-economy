@@ -114,14 +114,14 @@ public final class ServerMarketHandler {
 
         int sellCount = Math.min(requested, countInInventory(player.getInventory(), item));
         long sellTotal = sellCount > 0
-                ? data.quoteSell(item, sellCount, gameTime, spread).emeralds()
+                ? data.quoteSell(item, sellCount, gameTime, spread).cents()
                 : 0L;
 
         int buyCount = wantsMax
                 ? data.maxAffordable(item, EconomyAccount.balance(player), gameTime, spread, MAX_TRADE_COUNT)
                 : requested;
         long buyTotal = buyCount > 0
-                ? data.quoteBuy(item, buyCount, gameTime, spread).emeralds()
+                ? data.quoteBuy(item, buyCount, gameTime, spread).cents()
                 : 0L;
 
         context.reply(new QuotePayload(item, sellCount, sellTotal, buyCount, buyTotal));
@@ -177,8 +177,8 @@ public final class ServerMarketHandler {
                     : Mth.clamp(payload.count(), 1, MAX_TRADE_COUNT);
             if (requested <= 0) {
                 feedback(player, Component.translatable("message.soloeconomy.cannot_afford",
-                        data.quoteBuy(item, 1, gameTime, spread).emeralds(),
-                        EconomyAccount.balance(player)), true);
+                        EconomyAccount.format(data.quoteBuy(item, 1, gameTime, spread).cents()),
+                        EconomyAccount.format(EconomyAccount.balance(player))), true);
                 return;
             }
             buy(player, data, item, requested, gameTime, spread);
@@ -197,19 +197,20 @@ public final class ServerMarketHandler {
             return;
         }
 
-        if (!EconomyAccount.canAfford(player, quote.emeralds())) {
+        if (!EconomyAccount.canAfford(player, quote.cents())) {
             feedback(player, Component.translatable("message.soloeconomy.cannot_afford",
-                    quote.emeralds(), EconomyAccount.balance(player)), true);
+                    EconomyAccount.format(quote.cents()),
+                    EconomyAccount.format(EconomyAccount.balance(player))), true);
             return;
         }
 
         // Price is locked in before the market state moves, so what you were quoted is what you pay.
         data.commitBuy(item, count, gameTime, spread);
-        EconomyAccount.withdraw(player, quote.emeralds());
+        EconomyAccount.withdraw(player, quote.cents());
         giveItems(player, item, count);
 
         feedback(player, Component.translatable("message.soloeconomy.bought",
-                count, new ItemStack(item).getHoverName(), quote.emeralds()), false);
+                count, new ItemStack(item).getHoverName(), EconomyAccount.format(quote.cents())), false);
     }
 
     private static void sell(ServerPlayer player, MarketData data, Item item,
@@ -226,7 +227,7 @@ public final class ServerMarketHandler {
         if (quote.isEmpty()) {
             return;
         }
-        if (quote.emeralds() <= 0L) {
+        if (quote.cents() <= 0L) {
             feedback(player, Component.translatable("message.soloeconomy.worthless",
                     new ItemStack(item).getHoverName()), true);
             return;
@@ -241,9 +242,9 @@ public final class ServerMarketHandler {
                 ? data.commitSell(item, actual, gameTime, spread)
                 : data.commitSell(item, removed, gameTime, spread);
 
-        EconomyAccount.deposit(player, settled.emeralds());
+        EconomyAccount.deposit(player, settled.cents());
         feedback(player, Component.translatable("message.soloeconomy.sold",
-                removed, new ItemStack(item).getHoverName(), settled.emeralds()), false);
+                removed, new ItemStack(item).getHoverName(), EconomyAccount.format(settled.cents())), false);
     }
 
     // ------------------------------------------------------------------
@@ -268,17 +269,17 @@ public final class ServerMarketHandler {
                 return;
             }
             int removed = removeFromInventory(inventory, Items.EMERALD, amount);
-            EconomyAccount.deposit(player, removed);
+            EconomyAccount.deposit(player, removed * EconomyAccount.CENTS_PER_EMERALD);
             feedback(player, Component.translatable("message.soloeconomy.deposited", removed), false);
         } else {
-            long balance = EconomyAccount.balance(player);
-            long requested = payload.amount() < 0 ? Math.min(balance, MAX_TRADE_COUNT) : payload.amount();
-            int amount = (int) Math.min(Math.min(requested, balance), MAX_TRADE_COUNT);
+            long whole = EconomyAccount.balance(player) / EconomyAccount.CENTS_PER_EMERALD;
+            long requested = payload.amount() < 0 ? whole : payload.amount();
+            int amount = (int) Math.min(Math.min(requested, whole), MAX_TRADE_COUNT);
             if (amount <= 0) {
                 feedback(player, Component.translatable("message.soloeconomy.no_balance"), true);
                 return;
             }
-            EconomyAccount.withdraw(player, amount);
+            EconomyAccount.withdraw(player, amount * EconomyAccount.CENTS_PER_EMERALD);
             giveItems(player, Items.EMERALD, amount);
             feedback(player, Component.translatable("message.soloeconomy.withdrew", amount), false);
         }

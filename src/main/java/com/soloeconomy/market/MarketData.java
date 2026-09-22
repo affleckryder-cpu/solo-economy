@@ -193,7 +193,7 @@ public class MarketData extends SavedData {
             addToStocks(bundle, stocks, 1.0D);
             total += rawValue(bundle, stocks) * (1.0D - spread);
         }
-        return new Quote(count, total, (long) Math.floor(total), stocks);
+        return new Quote(count, total, (long) Math.floor(total * EconomyAccount.CENTS_PER_EMERALD), stocks);
     }
 
     public Quote quoteBuy(Item item, int count, long gameTime, double spread) {
@@ -211,12 +211,12 @@ public class MarketData extends SavedData {
         }
 
         // Round buys up so a fractional price can never be exploited down to free.
-        long cost = Math.max(1L, (long) Math.ceil(total));
+        long cost = Math.max(1L, (long) Math.ceil(total * EconomyAccount.CENTS_PER_EMERALD));
         return new Quote(count, total, cost, stocks);
     }
 
     /**
-     * Largest quantity a given budget can buy. Walks the curve rather than dividing by the spot
+     * Largest quantity a given budget (in cents) can buy. Walks the curve rather than dividing by the spot
      * price, because each unit bought drains the materials and pushes the next one up.
      */
     public int maxAffordable(Item item, long budget, long gameTime, double spread, int limit) {
@@ -233,7 +233,7 @@ public class MarketData extends SavedData {
         for (int count = 1; count <= limit; count++) {
             addToStocks(bundle, stocks, -1.0D);
             spent += rawValue(bundle, stocks) * assembly * (1.0D + spread);
-            if (Math.max(1.0D, Math.ceil(spent)) > budget) {
+            if (Math.max(1.0D, Math.ceil(spent * EconomyAccount.CENTS_PER_EMERALD)) > budget) {
                 break;
             }
             best = count;
@@ -314,10 +314,10 @@ public class MarketData extends SavedData {
      * The result of pricing a trade before it happens.
      *
      * @param exactValue the trade's value before rounding to whole emeralds
-     * @param emeralds   whole emeralds actually paid or received
+     * @param cents      hundredths of an emerald actually paid or received
      * @param endStocks  primitive stock levels this trade would leave behind
      */
-    public record Quote(int count, double exactValue, long emeralds, Map<Item, Double> endStocks) {
+    public record Quote(int count, double exactValue, long cents, Map<Item, Double> endStocks) {
 
         public static final Quote EMPTY = new Quote(0, 0.0D, 0L, Map.of());
 
