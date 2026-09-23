@@ -16,7 +16,6 @@ import net.minecraft.world.item.Items;
 import net.neoforged.neoforge.network.handling.IPayloadContext;
 
 import java.util.ArrayList;
-import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
 
@@ -29,8 +28,6 @@ public final class ServerMarketHandler {
 
     /** A count of -1 from the client means "as many as possible", resolved here. */
     public static final int COUNT_MAX = -1;
-    /** Transport cap on a single listings reply. Well above the vanilla catalogue. */
-    private static final int MAX_LISTINGS = 2048;
     /** Enough for a shulker box of anything; also stops a hostile client asking for 2^31 items. */
     private static final int MAX_TRADE_COUNT = 2304;
     /** Only the 36 main inventory slots trade. Worn armour and the offhand are left alone. */
@@ -56,27 +53,20 @@ public final class ServerMarketHandler {
         long gameTime = player.level().getGameTime();
         double spread = menu.spread();
 
+        // A search looks across every merchant; otherwise show one merchant's goods in their own order.
         String search = payload.search().trim().toLowerCase(Locale.ROOT);
-        List<Item> matches = new ArrayList<>();
+        MarketCatalog.Merchant merchant = catalog.merchant(payload.merchant());
+        List<Item> source = !search.isEmpty() ? catalog.tradeableItems()
+                : merchant != null ? merchant.items() : List.of();
 
-        for (Item item : catalog.tradeableItems()) {
-            if (payload.inventoryOnly() && countInInventory(player.getInventory(), item) <= 0) {
-                continue;
-            }
+        List<Listing> listings = new ArrayList<>();
+        for (Item item : source) {
             if (!search.isEmpty() && !matchesSearch(item, search)) {
                 continue;
             }
-            matches.add(item);
-        }
-
-        sort(matches, payload.sort(), data, gameTime, spread);
-
-        boolean truncated = matches.size() > MAX_LISTINGS;
-        int count = Math.min(matches.size(), MAX_LISTINGS);
-
-        List<Listing> listings = new ArrayList<>(count);
-        for (int i = 0; i < count; i++) {
-            Item item = matches.get(i);
+            if (payload.inventoryOnly() && countInInventory(player.getInventory(), item) <= 0) {
+                continue;
+            }
             listings.add(new Listing(
                     item,
                     (float) data.spotBuyPrice(item, gameTime, spread),
@@ -84,8 +74,11 @@ public final class ServerMarketHandler {
                     (float) data.supplyRatio(item, gameTime)));
         }
 
-        context.reply(new MarketListingsPayload(listings, truncated,
-                (float) spread, EconomyAccount.balance(player)));
+        List<MarketListingsPayload.Merchant> merchants = new ArrayList<>();
+        for (MarketCatalog.Merchant m : catalog.merchants()) {
+            merchants.add(new MarketListingsPayload.Merchant(m.id(), m.icon()));
+        }
+        context.reply(new MarketListingsPayload(merchants, listings, (float) spread, EconomyAccount.balance(player)));
     }
 
     /**
@@ -132,20 +125,6 @@ public final class ServerMarketHandler {
             return true;
         }
         return new ItemStack(item).getHoverName().getString().toLowerCase(Locale.ROOT).contains(lowerSearch);
-    }
-
-    private static void sort(List<Item> items, int sortMode, MarketData data,
-                             long gameTime, double spread) {
-        Comparator<Item> byName = Comparator.comparing(
-                item -> new ItemStack(item).getHoverName().getString().toLowerCase(Locale.ROOT));
-        Comparator<Item> byValue = Comparator.comparingDouble(
-                item -> data.spotBuyPrice(item, gameTime, spread));
-
-        switch (sortMode) {
-            case 1 -> items.sort(byValue.thenComparing(byName));
-            case 2 -> items.sort(byValue.reversed().thenComparing(byName));
-            default -> items.sort(byName);
-        }
     }
 
     // ------------------------------------------------------------------

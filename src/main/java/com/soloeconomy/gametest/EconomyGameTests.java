@@ -7,6 +7,7 @@ import com.soloeconomy.market.EconomyAccount;
 import com.soloeconomy.market.MarketAudit;
 import com.soloeconomy.market.MarketCatalog;
 import com.soloeconomy.market.MarketData;
+import com.soloeconomy.market.MerchantLoader;
 
 import net.minecraft.core.HolderLookup;
 import net.minecraft.gametest.framework.GameTest;
@@ -42,12 +43,12 @@ public final class EconomyGameTests {
     private static MarketCatalog buildCatalog(GameTestHelper helper) {
         MinecraftServer server = helper.getLevel().getServer();
         BasePriceLoader.Parsed seeds = BasePriceLoader.current();
-        MarketCatalog catalog = MarketCatalog.build(seeds.prices(), seeds.untradeable(),
+        MarketCatalog catalog = MarketCatalog.build(seeds.prices(), seeds.untradeable(), MerchantLoader.current(),
                 server.getRecipeManager(), server.registryAccess());
         MarketCatalog.setActive(catalog);
-        if (catalog.size() < 500) {
-            helper.fail("Catalogue only resolved " + catalog.size()
-                    + " items - base prices or recipes did not load");
+        if (catalog.size() < 150) {
+            helper.fail("Merchants only list " + catalog.size()
+                    + " priced items - prices, merchants or recipes did not load");
         }
         return catalog;
     }
@@ -185,19 +186,19 @@ public final class EconomyGameTests {
         MarketData market = new MarketData();
 
         // Charged amounts must be the real price in hundredths, not rounded to whole emeralds.
-        MarketData.Quote bought = market.quoteBuy(Items.DIRT, 1, 0L, spread);
+        MarketData.Quote bought = market.quoteBuy(Items.COBBLESTONE, 1, 0L, spread);
         long expected = (long) Math.ceil(bought.exactValue() * EconomyAccount.CENTS_PER_EMERALD);
         if (bought.cents() != expected) {
-            helper.fail(String.format("One dirt is worth %.4f emeralds, so it should cost %d cents, charged %d",
+            helper.fail(String.format("One cobblestone is worth %.4f emeralds, so it should cost %d cents, charged %d",
                     bought.exactValue(), expected, bought.cents()));
         }
         if (bought.cents() >= EconomyAccount.CENTS_PER_EMERALD) {
-            helper.fail("One dirt cost a whole emerald or more: " + bought.cents() + " cents");
+            helper.fail("One cobblestone cost a whole emerald or more: " + bought.cents() + " cents");
         }
 
-        MarketData.Quote sold = market.quoteSell(Items.DIRT, 8, 0L, spread);
+        MarketData.Quote sold = market.quoteSell(Items.COBBLESTONE, 8, 0L, spread);
         if (sold.cents() <= 0L) {
-            helper.fail("Selling 8 dirt paid nothing");
+            helper.fail("Selling 8 cobblestone paid nothing");
         }
 
         if (!EconomyAccount.format(1234L).equals("12.34") || !EconomyAccount.format(1200L).equals("12")) {

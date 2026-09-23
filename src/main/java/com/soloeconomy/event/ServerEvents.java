@@ -5,6 +5,7 @@ import com.soloeconomy.config.EconomyConfig;
 import com.soloeconomy.market.BasePriceLoader;
 import com.soloeconomy.market.EconomyAccount;
 import com.soloeconomy.market.MarketCatalog;
+import com.soloeconomy.market.MerchantLoader;
 import com.soloeconomy.registry.ModAttachments;
 
 import net.minecraft.server.MinecraftServer;
@@ -30,6 +31,7 @@ public final class ServerEvents {
     @SubscribeEvent
     public static void onAddReloadListeners(AddReloadListenerEvent event) {
         event.addListener(new BasePriceLoader());
+        event.addListener(new MerchantLoader());
     }
 
     @SubscribeEvent
@@ -82,6 +84,7 @@ public final class ServerEvents {
         MarketCatalog.setActive(MarketCatalog.build(
                 seeds.prices(),
                 seeds.untradeable(),
+                MerchantLoader.current(),
                 server.getRecipeManager(),
                 server.registryAccess()));
     }

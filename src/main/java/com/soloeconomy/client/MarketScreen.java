@@ -3,6 +3,7 @@ package com.soloeconomy.client;
 import com.soloeconomy.market.EconomyAccount;
 import com.soloeconomy.menu.MarketMenu;
 import com.soloeconomy.network.Listing;
+import com.soloeconomy.network.MarketListingsPayload;
 import com.soloeconomy.network.MarketQueryPayload;
 import com.soloeconomy.network.QuotePayload;
 import com.soloeconomy.network.QuoteRequestPayload;
@@ -10,16 +11,19 @@ import com.soloeconomy.network.ServerMarketHandler;
 import com.soloeconomy.network.TradePayload;
 import com.soloeconomy.network.TransferPayload;
 
+import net.minecraft.ChatFormatting;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.components.EditBox;
-import net.minecraft.client.gui.components.Tooltip;
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
 import net.minecraft.network.chat.Component;
+import net.minecraft.resources.ResourceLocation;
+import net.minecraft.util.FormattedCharSequence;
 import net.minecraft.util.Mth;
 import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.Items;
 import net.neoforged.neoforge.network.PacketDistributor;
 
 import org.lwjgl.glfw.GLFW;
@@ -30,300 +34,327 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * The stall UI: a searchable, scrollable catalogue with a sell column and a buy column.
+ * The stall UI, styled after the console edition menus: merchants down the left, the chosen
+ * merchant's goods as rows with their sell and buy prices, and one action bar at the bottom.
  *
- * <p>Prices shown here are quotes the server sent. Nothing on this screen is authoritative -
- * clicking sends only an item, a quantity and a direction, and the server re-prices the whole
- * trade before it happens.
+ * <p>Rows, icons and names are built once when a listing arrives rather than every frame.
+ * Prices shown are the server's quotes; clicking sends only an item, a quantity and a direction.
  */
 public class MarketScreen extends AbstractContainerScreen<MarketMenu> {
 
-    private static final int VISIBLE_ROWS = 5;
+    private static final ResourceLocation PANEL = ResourceLocation.withDefaultNamespace("textures/gui/container/villager.png");
+
+    private static final int WIDTH = 316;
+    private static final int HEIGHT = 230;
+
+    private static final int SIDE_X = 6;
+    private static final int SIDE_WIDTH = 88;
+    private static final int BOX_Y = 24;
+    private static final int BOX_HEIGHT = 176;
+    private static final int ENTRY_HEIGHT = 14;
+
+    private static final int LIST_X = 98;
+    private static final int LIST_WIDTH = 212;
+    private static final int ROWS_Y = 72;
     private static final int ROW_HEIGHT = 18;
-    private static final int LIST_X = 8;
-    private static final int LIST_Y = 58;
-    private static final int LIST_WIDTH = 232;
-    private static final int LIST_HEIGHT = VISIBLE_ROWS * ROW_HEIGHT;
-    private static final int SCROLLBAR_X = LIST_X + LIST_WIDTH + 2;
-    private static final int SCROLLBAR_WIDTH = 6;
-    private static final int MIN_THUMB_HEIGHT = 14;
-    private static final int SELL_COLUMN_X = 140;
-    private static final int BUY_COLUMN_X = 192;
-    private static final int COLUMN_WIDTH = 48;
-    private static final int PREVIEW_Y = 152;
-    private static final int CONTROLS_Y = 36;
+    private static final int ROWS = 7;
+    private static final int SELL_RIGHT = 250;
+    private static final int BUY_RIGHT = 296;
 
-    private static final int COLOR_PANEL = 0xFF1C1C20;
-    private static final int COLOR_BORDER = 0xFF000000;
-    private static final int COLOR_HEADER = 0xFF2A2A31;
-    private static final int COLOR_ROW = 0xFF232329;
-    private static final int COLOR_ROW_ALT = 0xFF26262D;
-    private static final int COLOR_SLOT = 0xFF373737;
-    private static final int COLOR_TRACK = 0xFF141418;
-    private static final int COLOR_THUMB = 0xFF4C4C57;
-    private static final int COLOR_THUMB_ACTIVE = 0xFF6E6E7C;
-    private static final int COLOR_TEXT = 0xFFE6E6E6;
-    private static final int COLOR_MUTED = 0xFF9A9AA2;
-    private static final int COLOR_SELL = 0xFF7FD07F;
-    private static final int COLOR_BUY = 0xFFE8B860;
-    private static final int COLOR_DENIED = 0xFFD07070;
-    private static final int COLOR_HOVER = 0x40FFFFFF;
+    private static final int BAR_Y = 205;
+    private static final int CHIP_X = 68;
+    private static final int CHIP_PITCH = 21;
+    private static final int BUTTON_WIDTH = 77;
 
-    /** Quantities the buttons cycle through; -1 asks the server for "as many as possible". */
+    private static final int COLOR_BOX = 0xFF2B2B2B;
+    private static final int COLOR_BOX_EDGE = 0xFF141414;
+    private static final int COLOR_TITLE = 0xFF404040;
+    private static final int COLOR_TEXT = 0xFFFFFFFF;
+    private static final int COLOR_MUTED = 0xFF9A9A9A;
+    private static final int COLOR_SELL = 0xFF55FF55;
+    private static final int COLOR_BUY = 0xFFFFAA00;
+    private static final int COLOR_ACCENT = 0xFF3DDC84;
+
+    /** Quantities to trade; -1 asks the server for "as many as possible". */
     private static final int[] QUANTITIES = {1, 8, 64, ServerMarketHandler.COUNT_MAX};
+    private static final String BANK = "bank";
+
+    /** A listing with its icon and name resolved once, so drawing a row allocates nothing. */
+    private record Row(Listing listing, ItemStack stack, String name) {
+    }
+
+    private record Entry(String id, ItemStack icon, Component name) {
+    }
+
+    private List<Row> rows = List.of();
+    private List<Entry> entries = List.of();
 
     private EditBox searchBox;
-    private final List<Button> quantityButtons = new ArrayList<>();
+    private Button leftButton;
+    private Button rightButton;
 
+    private String merchant = "";
     private String search = "";
-    private int sort;
-    private boolean inventoryOnly;
+    private boolean carryOnly;
     private int quantityIndex = 2;
-
-    private int scrollOffset;
+    private int scrollRow;
     private boolean draggingScrollbar;
 
-    /** The row the pointer is over, tracked so we only ask the server for a quote once per row. */
     @Nullable
-    private Item hoveredItem;
+    private Row selected;
     @Nullable
     private Item quoteRequestedFor;
     private int quoteRequestedQuantity = Integer.MIN_VALUE;
 
     public MarketScreen(MarketMenu menu, Inventory inventory, Component title) {
         super(menu, inventory, title);
-        this.imageWidth = 256;
-        this.imageHeight = 256;
+        this.imageWidth = WIDTH;
+        this.imageHeight = HEIGHT;
     }
 
     @Override
     protected void init() {
         super.init();
-        this.titleLabelX = 8;
-        this.titleLabelY = 6;
-        this.inventoryLabelX = 8;
-        this.inventoryLabelY = 164;
 
-        int left = leftPos;
-        int top = topPos;
-
-        searchBox = new EditBox(font, left + 8, top + 18, 132, 14, Component.translatable("gui.soloeconomy.search"));
+        searchBox = new EditBox(font, leftPos + 200, topPos + 9, 104, 10, Component.translatable("gui.soloeconomy.search"));
+        searchBox.setBordered(false);
         searchBox.setMaxLength(48);
-        searchBox.setHint(Component.translatable("gui.soloeconomy.search_hint"));
+        searchBox.setHint(Component.translatable("gui.soloeconomy.search_hint").withStyle(ChatFormatting.DARK_GRAY));
         searchBox.setValue(search);
         searchBox.setResponder(value -> {
             search = value;
-            scrollOffset = 0;
+            scrollRow = 0;
+            selected = null;
             requestRefresh();
         });
         addRenderableWidget(searchBox);
 
-        addRenderableWidget(Button.builder(sortLabel(), button -> {
-            sort = (sort + 1) % 3;
-            button.setMessage(sortLabel());
-            scrollOffset = 0;
-            requestRefresh();
-        }).bounds(left + 144, top + 18, 48, 14).build());
+        // Two action buttons: Sell and Buy for a merchant, Deposit and Withdraw at the bank.
+        leftButton = addRenderableWidget(Button.builder(Component.empty(), b -> act(false))
+                .bounds(leftPos + WIDTH - 8 - 2 * BUTTON_WIDTH - 2, topPos + BAR_Y, BUTTON_WIDTH, 18).build());
+        rightButton = addRenderableWidget(Button.builder(Component.empty(), b -> act(true))
+                .bounds(leftPos + WIDTH - 6 - BUTTON_WIDTH, topPos + BAR_Y, BUTTON_WIDTH, 18).build());
 
-        addRenderableWidget(Button.builder(bagLabel(), button -> {
-            inventoryOnly = !inventoryOnly;
-            button.setMessage(bagLabel());
-            scrollOffset = 0;
-            requestRefresh();
-        }).bounds(left + 196, top + 18, 52, 14).build());
-
-        quantityButtons.clear();
-        for (int i = 0; i < QUANTITIES.length; i++) {
-            final int index = i;
-            Button button = Button.builder(quantityLabel(i), b -> {
-                quantityIndex = index;
-                refreshQuantityLabels();
-                // The preview is per-quantity, so it has to be asked for again.
-                ClientMarketState.clearQuote();
-                quoteRequestedFor = null;
-            }).bounds(left + 28 + i * 24, top + CONTROLS_Y, 22, 12).build();
-            quantityButtons.add(button);
-            addRenderableWidget(button);
-        }
-        refreshQuantityLabels();
-
-        // Deposit and withdraw both honour the quantity selector, so "All" banks everything you
-        // are carrying or cashes out the whole account.
-        addRenderableWidget(Button.builder(Component.translatable("gui.soloeconomy.deposit"),
-                        b -> PacketDistributor.sendToServer(new TransferPayload(transferAmount(), true)))
-                .tooltip(Tooltip.create(Component.translatable("gui.soloeconomy.deposit_tip")))
-                .bounds(left + 128, top + CONTROLS_Y, 58, 12).build());
-
-        addRenderableWidget(Button.builder(Component.translatable("gui.soloeconomy.withdraw"),
-                        b -> PacketDistributor.sendToServer(new TransferPayload(transferAmount(), false)))
-                .tooltip(Tooltip.create(Component.translatable("gui.soloeconomy.withdraw_tip")))
-                .bounds(left + 190, top + CONTROLS_Y, 58, 12).build());
-
+        rebuildRows();
         requestRefresh();
     }
 
     // ------------------------------------------------------------------
-    // Server round trips
+    // State
     // ------------------------------------------------------------------
 
-    public void requestRefresh() {
-        PacketDistributor.sendToServer(new MarketQueryPayload(search, sort, inventoryOnly));
+    private boolean atBank() {
+        return BANK.equals(merchant) && search.isEmpty();
     }
 
-    /** Keeps the scroll position sane when the match set shrinks under us. */
+    public void requestRefresh() {
+        if (!atBank()) {
+            PacketDistributor.sendToServer(new MarketQueryPayload(search, carryOnly, merchant));
+        }
+    }
+
     public void onListingsChanged() {
-        scrollOffset = Mth.clamp(scrollOffset, 0, maxScroll());
+        rebuildRows();
         quoteRequestedFor = null;
     }
 
+    private void rebuildRows() {
+        List<Entry> newEntries = new ArrayList<>();
+        for (MarketListingsPayload.Merchant m : ClientMarketState.merchants()) {
+            newEntries.add(new Entry(m.id(), new ItemStack(m.icon()), merchantName(m.id())));
+        }
+        newEntries.add(new Entry(BANK, new ItemStack(Items.EMERALD), Component.translatable("gui.soloeconomy.bank")));
+        entries = newEntries;
+        // Until the first listing arrives there are no merchants; landing on the bank then would never query.
+        if (merchant.isEmpty() && !ClientMarketState.merchants().isEmpty()) {
+            merchant = ClientMarketState.merchants().get(0).id();
+        }
+
+        Item keep = selected == null ? null : selected.listing().item();
+        List<Row> newRows = new ArrayList<>();
+        selected = null;
+        for (Listing listing : ClientMarketState.listings()) {
+            ItemStack stack = new ItemStack(listing.item());
+            Row row = new Row(listing, stack, stack.getHoverName().getString());
+            newRows.add(row);
+            if (listing.item() == keep) {
+                selected = row;
+            }
+        }
+        rows = newRows;
+        scrollRow = Mth.clamp(scrollRow, 0, maxScroll());
+    }
+
+    private void selectMerchant(String id) {
+        if (id.equals(merchant) && search.isEmpty()) {
+            return;
+        }
+        merchant = id;
+        rows = List.of(); // don't flash the previous merchant's goods while the new ones arrive
+        searchBox.setValue(""); // its responder clears the selection and re-queries
+        setFocused(null); // picking a merchant ends the search, so give the hint back
+    }
+
     private int maxScroll() {
-        return Math.max(0, ClientMarketState.listings().size() - VISIBLE_ROWS);
+        return Math.max(0, rows.size() - ROWS);
     }
 
-    private void scrollBy(int rows) {
-        scrollOffset = Mth.clamp(scrollOffset + rows, 0, maxScroll());
-    }
-
-    private int selectedQuantity() {
+    private int quantity() {
         return QUANTITIES[quantityIndex];
     }
 
-    /** Emeralds to move on a deposit or withdrawal; -1 is the server's "as much as possible". */
-    private int transferAmount() {
-        int quantity = selectedQuantity();
-        return quantity == ServerMarketHandler.COUNT_MAX ? -1 : quantity;
+    private void act(boolean right) {
+        if (atBank()) {
+            int amount = quantity() == ServerMarketHandler.COUNT_MAX ? -1 : quantity();
+            PacketDistributor.sendToServer(new TransferPayload(amount, !right));
+        } else if (selected != null) {
+            PacketDistributor.sendToServer(new TradePayload(selected.listing().item(), quantity(), right));
+        }
     }
 
-    /** Ask for exact totals when the pointer lands on a new row, and not once per frame. */
     private void ensureQuote(Item item) {
-        if (item == quoteRequestedFor && selectedQuantity() == quoteRequestedQuantity) {
+        if (item == quoteRequestedFor && quantity() == quoteRequestedQuantity) {
             return;
         }
         quoteRequestedFor = item;
-        quoteRequestedQuantity = selectedQuantity();
-        PacketDistributor.sendToServer(new QuoteRequestPayload(item, selectedQuantity()));
+        quoteRequestedQuantity = quantity();
+        PacketDistributor.sendToServer(new QuoteRequestPayload(item, quantity()));
+    }
+
+    private int countHeld(Item item) {
+        int total = 0;
+        for (ItemStack stack : minecraft.player.getInventory().items) {
+            if (stack.is(item) && ServerMarketHandler.isTradeableStack(stack)) {
+                total += stack.getCount();
+            }
+        }
+        return total;
     }
 
     // ------------------------------------------------------------------
     // Input
     // ------------------------------------------------------------------
 
-    @Nullable
-    private Listing listingAtRow(int row) {
-        List<Listing> listings = ClientMarketState.listings();
-        int index = scrollOffset + row;
-        return index >= 0 && index < listings.size() ? listings.get(index) : null;
+    private static boolean inside(double mx, double my, int x, int y, int w, int h) {
+        return mx >= x && mx < x + w && my >= y && my < y + h;
     }
 
-    private int rowAt(double mouseY) {
-        int relative = (int) (mouseY - (topPos + LIST_Y));
-        if (relative < 0 || relative >= LIST_HEIGHT) {
+    @Nullable
+    private Row rowAt(double mx, double my) {
+        if (!inside(mx, my, leftPos + LIST_X + 2, topPos + ROWS_Y, LIST_WIDTH - 10, ROWS * ROW_HEIGHT)) {
+            return null;
+        }
+        int index = scrollRow + (int) (my - topPos - ROWS_Y) / ROW_HEIGHT;
+        return index < rows.size() ? rows.get(index) : null;
+    }
+
+    private int entryAt(double mx, double my) {
+        if (!inside(mx, my, leftPos + SIDE_X + 2, topPos + BOX_Y + 2, SIDE_WIDTH - 4, entries.size() * ENTRY_HEIGHT)) {
             return -1;
         }
-        return relative / ROW_HEIGHT;
+        return (int) (my - topPos - BOX_Y - 2) / ENTRY_HEIGHT;
+    }
+
+    private int chipAt(double mx, double my) {
+        if (!inside(mx, my, leftPos + CHIP_X, topPos + BAR_Y + 1, QUANTITIES.length * CHIP_PITCH, 16)) {
+            return -1;
+        }
+        int index = (int) (mx - leftPos - CHIP_X) / CHIP_PITCH;
+        return (mx - leftPos - CHIP_X) % CHIP_PITCH < CHIP_PITCH - 2 ? index : -1;
+    }
+
+    private boolean overToggle(double mx, double my) {
+        return !atBank() && inside(mx, my, leftPos + LIST_X + 4, topPos + BOX_Y + 36, 12 + font.width(Component.translatable("gui.soloeconomy.carry_only")), 10);
+    }
+
+    private boolean overScrollbar(double mx, double my) {
+        return inside(mx, my, leftPos + LIST_X + LIST_WIDTH - 8, topPos + ROWS_Y, 6, ROWS * ROW_HEIGHT);
     }
 
     @Override
-    public boolean mouseClicked(double mouseX, double mouseY, int button) {
-        if (isOverScrollbar(mouseX, mouseY)) {
+    public boolean mouseClicked(double mx, double my, int button) {
+        int entry = entryAt(mx, my);
+        if (entry >= 0 && entry < entries.size()) {
+            selectMerchant(entries.get(entry).id());
+            return true;
+        }
+        int chip = chipAt(mx, my);
+        if (chip >= 0) {
+            quantityIndex = chip;
+            ClientMarketState.clearQuote(); // totals are per quantity; don't show the old ones
+            return true;
+        }
+        if (overToggle(mx, my)) {
+            carryOnly = !carryOnly;
+            scrollRow = 0;
+            requestRefresh();
+            return true;
+        }
+        if (overScrollbar(mx, my)) {
             draggingScrollbar = true;
-            dragScrollbarTo(mouseY);
+            dragScrollbarTo(my);
             return true;
         }
-
-        int row = rowAt(mouseY);
-        if (row >= 0) {
-            Listing listing = listingAtRow(row);
-            if (listing != null) {
-                if (inColumn(mouseX, SELL_COLUMN_X)) {
-                    PacketDistributor.sendToServer(
-                            new TradePayload(listing.item(), selectedQuantity(), false));
-                    return true;
-                }
-                if (inColumn(mouseX, BUY_COLUMN_X)) {
-                    PacketDistributor.sendToServer(
-                            new TradePayload(listing.item(), selectedQuantity(), true));
-                    return true;
-                }
-            }
+        Row row = rowAt(mx, my);
+        if (row != null) {
+            selected = row;
+            return true;
         }
-        return super.mouseClicked(mouseX, mouseY, button);
+        return super.mouseClicked(mx, my, button);
     }
 
     @Override
-    public boolean mouseDragged(double mouseX, double mouseY, int button, double dragX, double dragY) {
+    public boolean mouseDragged(double mx, double my, int button, double dragX, double dragY) {
         if (draggingScrollbar) {
-            dragScrollbarTo(mouseY);
+            dragScrollbarTo(my);
             return true;
         }
-        return super.mouseDragged(mouseX, mouseY, button, dragX, dragY);
+        return super.mouseDragged(mx, my, button, dragX, dragY);
     }
 
     @Override
-    public boolean mouseReleased(double mouseX, double mouseY, int button) {
+    public boolean mouseReleased(double mx, double my, int button) {
         draggingScrollbar = false;
-        return super.mouseReleased(mouseX, mouseY, button);
+        return super.mouseReleased(mx, my, button);
     }
 
-    private boolean isOverScrollbar(double mouseX, double mouseY) {
-        double x = mouseX - leftPos;
-        double y = mouseY - topPos;
-        return x >= SCROLLBAR_X && x < SCROLLBAR_X + SCROLLBAR_WIDTH
-                && y >= LIST_Y && y < LIST_Y + LIST_HEIGHT;
-    }
-
-    /** Maps a pointer position on the track to a scroll row, centring the thumb on the cursor. */
-    private void dragScrollbarTo(double mouseY) {
-        int max = maxScroll();
-        if (max <= 0) {
-            scrollOffset = 0;
-            return;
-        }
-        int thumbHeight = thumbHeight();
-        double travel = LIST_HEIGHT - thumbHeight;
-        double local = mouseY - (topPos + LIST_Y) - thumbHeight / 2.0D;
-        double fraction = travel <= 0.0D ? 0.0D : local / travel;
-        scrollOffset = Mth.clamp((int) Math.round(fraction * max), 0, max);
-    }
-
-    private int thumbHeight() {
-        int total = ClientMarketState.listings().size();
-        if (total <= VISIBLE_ROWS) {
-            return LIST_HEIGHT;
-        }
-        return Math.max(MIN_THUMB_HEIGHT, LIST_HEIGHT * VISIBLE_ROWS / total);
+    private void dragScrollbarTo(double my) {
+        double fraction = (my - topPos - ROWS_Y) / (ROWS * ROW_HEIGHT);
+        scrollRow = Mth.clamp((int) Math.round(fraction * maxScroll()), 0, maxScroll());
     }
 
     @Override
-    public boolean mouseScrolled(double mouseX, double mouseY, double scrollX, double scrollY) {
-        double y = mouseY - topPos;
-        if (y >= LIST_Y && y < LIST_Y + LIST_HEIGHT) {
-            scrollBy(scrollY > 0 ? -1 : 1);
+    public boolean mouseScrolled(double mx, double my, double scrollX, double scrollY) {
+        if (inside(mx, my, leftPos + LIST_X, topPos + BOX_Y, LIST_WIDTH, BOX_HEIGHT)) {
+            scrollRow = Mth.clamp(scrollRow + (scrollY > 0 ? -1 : 1), 0, maxScroll());
             return true;
         }
-        return super.mouseScrolled(mouseX, mouseY, scrollX, scrollY);
+        return super.mouseScrolled(mx, my, scrollX, scrollY);
     }
 
     @Override
     public boolean keyPressed(int keyCode, int scanCode, int modifiers) {
         // Let the search box swallow typing, or "e" would slam the screen shut mid-word.
-        if (searchBox != null && searchBox.isFocused() && keyCode != GLFW.GLFW_KEY_ESCAPE) {
+        if (searchBox.isFocused() && keyCode != GLFW.GLFW_KEY_ESCAPE) {
             return searchBox.keyPressed(keyCode, scanCode, modifiers) || searchBox.canConsumeInput();
+        }
+        // Console-style: arrow keys walk the list.
+        if ((keyCode == GLFW.GLFW_KEY_UP || keyCode == GLFW.GLFW_KEY_DOWN) && !rows.isEmpty()) {
+            int index = selected == null ? -1 : rows.indexOf(selected);
+            index = Mth.clamp(index + (keyCode == GLFW.GLFW_KEY_UP ? -1 : 1), 0, rows.size() - 1);
+            selected = rows.get(index);
+            scrollRow = Mth.clamp(scrollRow, index - ROWS + 1, index);
+            return true;
         }
         return super.keyPressed(keyCode, scanCode, modifiers);
     }
 
     @Override
     public boolean charTyped(char codePoint, int modifiers) {
-        if (searchBox != null && searchBox.isFocused()) {
+        if (searchBox.isFocused()) {
             return searchBox.charTyped(codePoint, modifiers);
         }
         return super.charTyped(codePoint, modifiers);
-    }
-
-    private boolean inColumn(double mouseX, int columnX) {
-        double x = mouseX - leftPos;
-        return x >= columnX && x < columnX + COLUMN_WIDTH;
     }
 
     // ------------------------------------------------------------------
@@ -331,236 +362,289 @@ public class MarketScreen extends AbstractContainerScreen<MarketMenu> {
     // ------------------------------------------------------------------
 
     @Override
-    protected void renderBg(GuiGraphics graphics, float partialTick, int mouseX, int mouseY) {
-        int left = leftPos;
-        int top = topPos;
-
-        graphics.fill(left - 1, top - 1, left + imageWidth + 1, top + imageHeight + 1, COLOR_BORDER);
-        graphics.fill(left, top, left + imageWidth, top + imageHeight, COLOR_PANEL);
-
-        graphics.drawString(font, Component.translatable("gui.soloeconomy.quantity"),
-                left + LIST_X, top + CONTROLS_Y + 2, COLOR_MUTED, false);
-
-        graphics.fill(left + LIST_X, top + LIST_Y - 10, left + LIST_X + LIST_WIDTH, top + LIST_Y - 1, COLOR_HEADER);
-        graphics.drawString(font, Component.translatable("gui.soloeconomy.column_item"),
-                left + LIST_X + 3, top + LIST_Y - 8, COLOR_MUTED, false);
-        drawCentered(graphics, Component.translatable("gui.soloeconomy.column_sell"),
-                left + SELL_COLUMN_X + COLUMN_WIDTH / 2, top + LIST_Y - 8, COLOR_MUTED);
-        drawCentered(graphics, Component.translatable("gui.soloeconomy.column_buy"),
-                left + BUY_COLUMN_X + COLUMN_WIDTH / 2, top + LIST_Y - 8, COLOR_MUTED);
-
-        renderRows(graphics, mouseX, mouseY);
-        renderScrollbar(graphics, mouseX, mouseY);
-        renderPreview(graphics);
-        renderSlotBackgrounds(graphics);
+    public void render(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
+        updateButtons();
+        super.render(graphics, mouseX, mouseY, partialTick);
+        renderHoverTooltip(graphics, mouseX, mouseY);
     }
 
-    private void renderRows(GuiGraphics graphics, int mouseX, int mouseY) {
-        hoveredItem = null;
+    @Override
+    protected void renderBg(GuiGraphics g, float partialTick, int mouseX, int mouseY) {
+        drawPanel(g, leftPos, topPos, WIDTH, HEIGHT);
+        drawBox(g, leftPos + 196, topPos + 6, 112, 14);
+        drawBox(g, leftPos + SIDE_X, topPos + BOX_Y, SIDE_WIDTH, BOX_HEIGHT);
+        drawBox(g, leftPos + LIST_X, topPos + BOX_Y, LIST_WIDTH, BOX_HEIGHT);
 
-        for (int row = 0; row < VISIBLE_ROWS; row++) {
-            int y = topPos + LIST_Y + row * ROW_HEIGHT;
-            graphics.fill(leftPos + LIST_X, y, leftPos + LIST_X + LIST_WIDTH, y + ROW_HEIGHT - 1,
-                    (row & 1) == 0 ? COLOR_ROW : COLOR_ROW_ALT);
+        renderSidebar(g, mouseX, mouseY);
+        if (atBank()) {
+            renderBank(g);
+        } else {
+            renderListing(g, mouseX, mouseY);
+        }
+        renderBar(g, mouseX, mouseY);
+    }
 
-            Listing listing = listingAtRow(row);
-            if (listing == null) {
-                continue;
+    @Override
+    protected void renderLabels(GuiGraphics g, int mouseX, int mouseY) {
+        g.drawString(font, title, 10, 9, COLOR_TITLE, false);
+        Component fee = Component.translatable("gui.soloeconomy.fee", String.format("%.1f", ClientMarketState.spread() * 200.0F));
+        g.drawString(font, fee, 190 - font.width(fee), 9, COLOR_TITLE, false);
+    }
+
+    private void renderSidebar(GuiGraphics g, int mouseX, int mouseY) {
+        int hovered = entryAt(mouseX, mouseY);
+        for (int i = 0; i < entries.size(); i++) {
+            Entry entry = entries.get(i);
+            int x = leftPos + SIDE_X + 2;
+            int y = topPos + BOX_Y + 2 + i * ENTRY_HEIGHT;
+            boolean chosen = entry.id().equals(merchant) && search.isEmpty();
+            if (chosen) {
+                g.fill(x, y, x + SIDE_WIDTH - 4, y + ENTRY_HEIGHT, 0x30FFFFFF);
+                g.fill(x, y, x + 2, y + ENTRY_HEIGHT, COLOR_ACCENT);
+            } else if (i == hovered) {
+                g.fill(x, y, x + SIDE_WIDTH - 4, y + ENTRY_HEIGHT, 0x14FFFFFF);
             }
-            ItemStack stack = new ItemStack(listing.item());
+            g.pose().pushPose();
+            g.pose().translate(x + 5, y + 1, 0);
+            g.pose().scale(0.75F, 0.75F, 1.0F);
+            g.renderItem(entry.icon(), 0, 0);
+            g.pose().popPose();
+            g.drawString(font, entry.name(), x + 20, y + 3, chosen ? COLOR_TEXT : 0xFFC8C8C8, true);
+        }
+    }
 
-            graphics.renderItem(stack, leftPos + LIST_X + 3, y + 1);
+    private void renderListing(GuiGraphics g, int mouseX, int mouseY) {
+        int x = leftPos + LIST_X;
+        int y = topPos + BOX_Y;
 
-            String name = stack.getHoverName().getString();
-            int maxWidth = SELL_COLUMN_X - (LIST_X + 24) - 4;
-            graphics.drawString(font, font.plainSubstrByWidth(name, maxWidth),
-                    leftPos + LIST_X + 24, y + 5, COLOR_TEXT, false);
+        Component heading = search.isEmpty() ? merchantName(merchant) : Component.translatable("gui.soloeconomy.results");
+        Component blurb = search.isEmpty() ? merchantBlurb(merchant) : Component.translatable("gui.soloeconomy.results.desc");
+        g.drawString(font, heading, x + 6, y + 5, COLOR_TEXT, true);
+        List<FormattedCharSequence> lines = font.split(blurb, LIST_WIDTH - 12);
+        for (int i = 0; i < Math.min(2, lines.size()); i++) {
+            g.drawString(font, lines.get(i), x + 6, y + 16 + i * 9, COLOR_MUTED, false);
+        }
 
-            drawPriceCell(graphics, SELL_COLUMN_X, y, listing.sellPrice(), COLOR_SELL, mouseX, mouseY);
-            drawPriceCell(graphics, BUY_COLUMN_X, y, listing.buyPrice(), COLOR_BUY, mouseX, mouseY);
+        // "Only what I carry" toggle, sharing the column-header line
+        int tx = x + 6;
+        g.fill(tx, y + 37, tx + 8, y + 45, 0xFF555555);
+        g.fill(tx + 1, y + 38, tx + 7, y + 44, carryOnly ? COLOR_ACCENT : COLOR_BOX);
+        g.drawString(font, Component.translatable("gui.soloeconomy.carry_only"), tx + 11, y + 38,
+                overToggle(mouseX, mouseY) ? COLOR_TEXT : COLOR_MUTED, false);
 
-            boolean overRow = mouseX >= leftPos + LIST_X && mouseX < leftPos + LIST_X + LIST_WIDTH
-                    && mouseY >= y && mouseY < y + ROW_HEIGHT - 1;
-            if (overRow) {
-                hoveredItem = listing.item();
+        g.drawString(font, Component.translatable("gui.soloeconomy.unit_sell"),
+                leftPos + SELL_RIGHT - font.width(Component.translatable("gui.soloeconomy.unit_sell")), y + 38, COLOR_MUTED, false);
+        g.drawString(font, Component.translatable("gui.soloeconomy.unit_buy"),
+                leftPos + BUY_RIGHT - font.width(Component.translatable("gui.soloeconomy.unit_buy")), y + 38, COLOR_MUTED, false);
+        g.fill(x + 4, y + 47, x + LIST_WIDTH - 4, y + 48, 0xFF444444);
+
+        if (rows.isEmpty()) {
+            Component empty = Component.translatable(carryOnly ? "gui.soloeconomy.empty_carry" : "gui.soloeconomy.empty");
+            g.drawString(font, empty, x + (LIST_WIDTH - font.width(empty)) / 2, topPos + ROWS_Y + 50, COLOR_MUTED, false);
+            return;
+        }
+
+        Row hovered = rowAt(mouseX, mouseY);
+        for (int i = 0; i < ROWS && scrollRow + i < rows.size(); i++) {
+            Row row = rows.get(scrollRow + i);
+            int rx = x + 2;
+            int ry = topPos + ROWS_Y + i * ROW_HEIGHT;
+            int rw = LIST_WIDTH - 12;
+            if (row == selected) {
+                g.fill(rx, ry, rx + rw, ry + ROW_HEIGHT, 0x30FFFFFF);
+                drawFrame(g, rx, ry, rw, ROW_HEIGHT, 0xFFFFFFFF);
+            } else if (row == hovered) {
+                g.fill(rx, ry, rx + rw, ry + ROW_HEIGHT, 0x18FFFFFF);
+            } else if ((scrollRow + i) % 2 == 1) {
+                g.fill(rx, ry, rx + rw, ry + ROW_HEIGHT, 0x0AFFFFFF);
             }
+            g.renderItem(row.stack(), rx + 3, ry + 1);
+            String sell = formatPrice(row.listing().sellPrice());
+            String name = font.plainSubstrByWidth(row.name(), SELL_RIGHT - font.width(sell) - 8 - (rx + 22 - leftPos));
+            g.drawString(font, name, rx + 22, ry + 5, COLOR_TEXT, true);
+            g.drawString(font, sell, leftPos + SELL_RIGHT - font.width(sell), ry + 5, COLOR_SELL, true);
+            String buy = formatPrice(row.listing().buyPrice());
+            g.drawString(font, buy, leftPos + BUY_RIGHT - font.width(buy), ry + 5, COLOR_BUY, true);
         }
-
-        if (hoveredItem != null) {
-            ensureQuote(hoveredItem);
-        }
-    }
-
-    private void drawPriceCell(GuiGraphics graphics, int columnX, int y, float price,
-                               int color, int mouseX, int mouseY) {
-        int x0 = leftPos + columnX;
-        int x1 = x0 + COLUMN_WIDTH;
-        boolean hovered = mouseX >= x0 && mouseX < x1 && mouseY >= y && mouseY < y + ROW_HEIGHT - 1;
-        if (hovered) {
-            graphics.fill(x0, y, x1, y + ROW_HEIGHT - 1, COLOR_HOVER);
-        }
-        drawCentered(graphics, Component.literal(formatPrice(price)),
-                x0 + COLUMN_WIDTH / 2, y + 5, color);
-    }
-
-    private void renderScrollbar(GuiGraphics graphics, int mouseX, int mouseY) {
-        int x0 = leftPos + SCROLLBAR_X;
-        int x1 = x0 + SCROLLBAR_WIDTH;
-        int y0 = topPos + LIST_Y;
-        graphics.fill(x0, y0, x1, y0 + LIST_HEIGHT, COLOR_TRACK);
 
         int max = maxScroll();
-        if (max <= 0) {
-            return; // everything fits; no thumb to drag
+        if (max > 0) {
+            int trackX = x + LIST_WIDTH - 7;
+            int trackH = ROWS * ROW_HEIGHT;
+            int thumbH = Math.max(12, trackH * ROWS / rows.size());
+            int thumbY = topPos + ROWS_Y + (trackH - thumbH) * scrollRow / max;
+            g.fill(trackX, topPos + ROWS_Y, trackX + 3, topPos + ROWS_Y + trackH, 0x30000000);
+            g.fill(trackX, thumbY, trackX + 3, thumbY + thumbH, 0xFFB0B0B0);
         }
-
-        int thumbHeight = thumbHeight();
-        int travel = LIST_HEIGHT - thumbHeight;
-        int thumbY = y0 + (int) Math.round((double) travel * scrollOffset / max);
-        boolean active = draggingScrollbar || isOverScrollbar(mouseX, mouseY);
-        graphics.fill(x0, thumbY, x1, thumbY + thumbHeight, active ? COLOR_THUMB_ACTIVE : COLOR_THUMB);
     }
 
-    /**
-     * The cost preview. Shows what the selected quantity would actually cost or pay, using totals
-     * the server worked out by walking the price curve - not the unit price multiplied out, which
-     * would be wrong for anything big enough to move the market.
-     */
-    private void renderPreview(GuiGraphics graphics) {
+    private void renderBank(GuiGraphics g) {
         int x = leftPos + LIST_X;
-        int y = topPos + PREVIEW_Y;
-
-        if (hoveredItem == null) {
-            Component idle = ClientMarketState.truncated()
-                    ? Component.translatable("gui.soloeconomy.truncated",
-                            ClientMarketState.listings().size())
-                    : Component.translatable("gui.soloeconomy.preview_idle",
-                            ClientMarketState.listings().size(),
-                            String.format("%.1f", ClientMarketState.spread() * 200.0F));
-            graphics.drawString(font, idle, x, y, COLOR_MUTED, false);
-            return;
+        int y = topPos + BOX_Y;
+        g.drawString(font, Component.translatable("gui.soloeconomy.bank"), x + 6, y + 5, COLOR_TEXT, true);
+        List<FormattedCharSequence> lines = font.split(Component.translatable("gui.soloeconomy.bank.desc"), LIST_WIDTH - 12);
+        for (int i = 0; i < lines.size(); i++) {
+            g.drawString(font, lines.get(i), x + 6, y + 16 + i * 9, COLOR_MUTED, false);
         }
 
-        QuotePayload quote = ClientMarketState.quoteFor(hoveredItem);
-        if (quote == null) {
-            graphics.drawString(font, Component.translatable("gui.soloeconomy.preview_pending"),
-                    x, y, COLOR_MUTED, false);
-            return;
-        }
+        String balance = EconomyAccount.format(ClientMarketState.balance());
+        g.pose().pushPose();
+        g.pose().translate(x + LIST_WIDTH / 2.0F, y + 80, 0);
+        g.pose().scale(2.0F, 2.0F, 1.0F);
+        g.drawString(font, balance, -font.width(balance) / 2, 0, COLOR_SELL, true);
+        g.pose().popPose();
+        Component unit = Component.translatable("gui.soloeconomy.bank.unit");
+        g.drawString(font, unit, x + (LIST_WIDTH - font.width(unit)) / 2, y + 102, COLOR_MUTED, false);
 
-        Component sell = quote.sellCount() <= 0
-                ? Component.translatable("gui.soloeconomy.preview_none")
-                : Component.translatable("gui.soloeconomy.preview_sell",
-                        quote.sellCount(), EconomyAccount.format(quote.sellTotal()));
-        graphics.drawString(font, sell, x, y, quote.sellCount() <= 0 ? COLOR_MUTED : COLOR_SELL, false);
-
-        Component buy = quote.buyCount() <= 0
-                ? Component.translatable("gui.soloeconomy.preview_broke")
-                : Component.translatable("gui.soloeconomy.preview_buy",
-                        quote.buyCount(), EconomyAccount.format(quote.buyTotal()));
-        String buyText = buy.getString();
-        graphics.drawString(font, buyText, leftPos + imageWidth - 8 - font.width(buyText), y,
-                quote.buyCount() <= 0 ? COLOR_DENIED : COLOR_BUY, false);
+        Component carried = Component.translatable("gui.soloeconomy.bank.carrying", countHeld(Items.EMERALD));
+        g.drawString(font, carried, x + (LIST_WIDTH - font.width(carried)) / 2, y + 140, COLOR_MUTED, false);
     }
 
-    private void renderSlotBackgrounds(GuiGraphics graphics) {
-        for (int row = 0; row < 3; row++) {
-            for (int col = 0; col < 9; col++) {
-                drawSlot(graphics, MarketMenu.INVENTORY_X + col * 18, MarketMenu.INVENTORY_Y + row * 18);
+    private void renderBar(GuiGraphics g, int mouseX, int mouseY) {
+        int y = topPos + BAR_Y;
+        g.renderItem(new ItemStack(Items.EMERALD), leftPos + 8, y + 1);
+        g.drawString(font, wholeBalance(), leftPos + 26, y + 5, COLOR_TITLE, false);
+
+        int hoveredChip = chipAt(mouseX, mouseY);
+        for (int i = 0; i < QUANTITIES.length; i++) {
+            int cx = leftPos + CHIP_X + i * CHIP_PITCH;
+            int cw = CHIP_PITCH - 2;
+            boolean chosen = i == quantityIndex;
+            drawBox(g, cx, y + 1, cw, 16);
+            if (chosen) {
+                drawFrame(g, cx, y + 1, cw, 16, 0xFFFFFFFF);
             }
+            String label = QUANTITIES[i] == ServerMarketHandler.COUNT_MAX
+                    ? Component.translatable("gui.soloeconomy.quantity_all").getString()
+                    : String.valueOf(QUANTITIES[i]);
+            int color = chosen ? COLOR_TEXT : i == hoveredChip ? 0xFFD8D8D8 : COLOR_MUTED;
+            g.drawString(font, label, cx + (cw - font.width(label)) / 2 + 1, y + 5, color, chosen);
         }
-        for (int col = 0; col < 9; col++) {
-            drawSlot(graphics, MarketMenu.INVENTORY_X + col * 18, MarketMenu.HOTBAR_Y);
+    }
+
+    /** The action buttons carry the exact total for the chosen quantity, once the server has priced it. */
+    private void updateButtons() {
+        if (atBank()) {
+            setButton(leftButton, Component.translatable("gui.soloeconomy.deposit"), true);
+            setButton(rightButton, Component.translatable("gui.soloeconomy.withdraw"), true);
+            return;
         }
+        if (selected == null) {
+            setButton(leftButton, Component.translatable("gui.soloeconomy.unit_sell"), false);
+            setButton(rightButton, Component.translatable("gui.soloeconomy.unit_buy"), false);
+            return;
+        }
+        ensureQuote(selected.listing().item());
+        QuotePayload quote = ClientMarketState.quoteFor(selected.listing().item());
+        if (quote == null) {
+            setButton(leftButton, Component.literal("..."), false);
+            setButton(rightButton, Component.literal("..."), false);
+            return;
+        }
+        // Labels carry only the total to fit; hovering gives the count and exact amount.
+        setButton(leftButton, quote.sellCount() <= 0
+                ? Component.translatable("gui.soloeconomy.action_none")
+                : Component.translatable("gui.soloeconomy.action_sell", shortTotal(quote.sellTotal()))
+                        .withStyle(ChatFormatting.GREEN), quote.sellCount() > 0);
+        setButton(rightButton, quote.buyCount() <= 0
+                ? Component.translatable("gui.soloeconomy.action_broke")
+                : Component.translatable("gui.soloeconomy.action_buy", shortTotal(quote.buyTotal()))
+                        .withStyle(ChatFormatting.GOLD), quote.buyCount() > 0);
     }
 
-    private void drawSlot(GuiGraphics graphics, int x, int y) {
-        int px = leftPos + x - 1;
-        int py = topPos + y - 1;
-        graphics.fill(px, py, px + 18, py + 18, COLOR_BORDER);
-        graphics.fill(px + 1, py + 1, px + 17, py + 17, COLOR_SLOT);
+    private static void setButton(Button button, Component message, boolean active) {
+        button.setMessage(message);
+        button.active = active;
     }
 
-    @Override
-    protected void renderLabels(GuiGraphics graphics, int mouseX, int mouseY) {
-        graphics.drawString(font, title, titleLabelX, titleLabelY, COLOR_TEXT, false);
-        graphics.drawString(font, playerInventoryTitle, inventoryLabelX, inventoryLabelY, COLOR_MUTED, false);
-
-        String balance = wholeBalanceLabel();
-        graphics.drawString(font, balance, imageWidth - 8 - font.width(balance), 6, COLOR_SELL, false);
-    }
-
-    /** Whole emeralds only; the exact amount is one hover away. Floored, matching what Withdraw gives. */
-    private String wholeBalanceLabel() {
-        return Component.translatable("gui.soloeconomy.balance",
-                ClientMarketState.balance() / EconomyAccount.CENTS_PER_EMERALD).getString();
-    }
-
-    @Override
-    public void render(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
-        super.render(graphics, mouseX, mouseY, partialTick);
-        renderRowTooltip(graphics, mouseX, mouseY);
-        renderBalanceTooltip(graphics, mouseX, mouseY);
-        renderTooltip(graphics, mouseX, mouseY);
-    }
-
-    private void renderBalanceTooltip(GuiGraphics graphics, int mouseX, int mouseY) {
-        int right = leftPos + imageWidth - 8;
-        int left = right - font.width(wholeBalanceLabel());
-        if (mouseX >= left && mouseX < right && mouseY >= topPos + 5 && mouseY < topPos + 15) {
-            graphics.renderTooltip(font, Component.translatable("gui.soloeconomy.balance",
+    private void renderHoverTooltip(GuiGraphics g, int mouseX, int mouseY) {
+        // Only over the icon: a tooltip from anywhere else on the row would cover the prices.
+        Row row = atBank() || mouseX >= leftPos + LIST_X + 23 ? null : rowAt(mouseX, mouseY);
+        if (row != null) {
+            g.renderComponentTooltip(font, List.of(
+                    row.stack().getHoverName(),
+                    supplyLine(row.listing().stockRatio()),
+                    Component.translatable("gui.soloeconomy.carrying", countHeld(row.listing().item()))
+                            .withStyle(ChatFormatting.GRAY)), mouseX, mouseY);
+            return;
+        }
+        if (inside(mouseX, mouseY, leftPos + 8, topPos + BAR_Y, 18 + font.width(wholeBalance()), 18)) {
+            g.renderTooltip(font, Component.translatable("gui.soloeconomy.balance",
                     EconomyAccount.format(ClientMarketState.balance())), mouseX, mouseY);
-        }
-    }
-
-    private void renderRowTooltip(GuiGraphics graphics, int mouseX, int mouseY) {
-        int row = rowAt(mouseY);
-        if (row < 0 || mouseX < leftPos + LIST_X || mouseX >= leftPos + LIST_X + LIST_WIDTH) {
             return;
         }
-        Listing listing = listingAtRow(row);
-        if (listing == null) {
+        QuotePayload quote = selected == null || atBank() ? null : ClientMarketState.quoteFor(selected.listing().item());
+        if (quote != null && leftButton.isHovered() && quote.sellCount() > 0) {
+            g.renderTooltip(font, Component.translatable("gui.soloeconomy.action_sell_tip", quote.sellCount(),
+                    EconomyAccount.format(quote.sellTotal())), mouseX, mouseY);
             return;
         }
-
-        List<Component> lines = new ArrayList<>();
-        lines.add(new ItemStack(listing.item()).getHoverName());
-        lines.add(supplyLine(listing.stockRatio()));
-        lines.add(Component.translatable("gui.soloeconomy.tooltip_hint", quantityLabel(quantityIndex)));
-        graphics.renderComponentTooltip(font, lines, mouseX, mouseY);
-    }
-
-    /**
-     * Turns the raw stock ratio into the only thing a player actually needs from it: whether this
-     * is a good moment to sell or to buy.
-     */
-    private static Component supplyLine(float stockRatio) {
-        if (stockRatio > 1.25F) {
-            return Component.translatable("gui.soloeconomy.supply_glut");
+        if (quote != null && rightButton.isHovered() && quote.buyCount() > 0) {
+            g.renderTooltip(font, Component.translatable("gui.soloeconomy.action_buy_tip", quote.buyCount(),
+                    EconomyAccount.format(quote.buyTotal())), mouseX, mouseY);
+            return;
         }
-        if (stockRatio < 0.8F) {
-            return Component.translatable("gui.soloeconomy.supply_short");
+        if (chipAt(mouseX, mouseY) >= 0 && atBank()) {
+            g.renderTooltip(font, Component.translatable("gui.soloeconomy.quantity_bank_tip"), mouseX, mouseY);
         }
-        return Component.translatable("gui.soloeconomy.supply_normal");
     }
 
     // ------------------------------------------------------------------
-    // Small helpers
+    // Drawing helpers
     // ------------------------------------------------------------------
 
-    private void drawCentered(GuiGraphics graphics, Component text, int centerX, int y, int color) {
-        String value = text.getString();
-        graphics.drawString(font, value, centerX - font.width(value) / 2, y, color, false);
+    /** Vanilla container panel of any size, nine-sliced from the villager screen's 4px frame. */
+    private static void drawPanel(GuiGraphics g, int x, int y, int w, int h) {
+        int b = 4;
+        g.blit(PANEL, x, y, b, b, 0, 0, b, b, 512, 256);
+        g.blit(PANEL, x + w - b, y, b, b, 272, 0, b, b, 512, 256);
+        g.blit(PANEL, x, y + h - b, b, b, 0, 162, b, b, 512, 256);
+        g.blit(PANEL, x + w - b, y + h - b, b, b, 272, 162, b, b, 512, 256);
+        g.blit(PANEL, x + b, y, w - 2 * b, b, 150, 0, 1, b, 512, 256);
+        g.blit(PANEL, x + b, y + h - b, w - 2 * b, b, 150, 162, 1, b, 512, 256);
+        g.blit(PANEL, x, y + b, b, h - 2 * b, 0, 8, b, 1, 512, 256);
+        g.blit(PANEL, x + w - b, y + b, b, h - 2 * b, 272, 8, b, 1, 512, 256);
+        g.blit(PANEL, x + b, y + b, w - 2 * b, h - 2 * b, 150, 8, 1, 1, 512, 256);
     }
 
-    /**
-     * Cheap goods need decimals; expensive ones do not. Sub-emerald items get three, because at
-     * two a whole stack of dirt can move the price without the display ever changing, which makes
-     * a working market look broken.
-     */
+    /** Dark rounded box, the console-menu content area. */
+    private static void drawBox(GuiGraphics g, int x, int y, int w, int h) {
+        g.fill(x + 1, y, x + w - 1, y + h, COLOR_BOX_EDGE);
+        g.fill(x, y + 1, x + w, y + h - 1, COLOR_BOX_EDGE);
+        g.fill(x + 1, y + 1, x + w - 1, y + h - 1, COLOR_BOX);
+    }
+
+    private static void drawFrame(GuiGraphics g, int x, int y, int w, int h, int color) {
+        g.fill(x, y, x + w, y + 1, color);
+        g.fill(x, y + h - 1, x + w, y + h, color);
+        g.fill(x, y, x + 1, y + h, color);
+        g.fill(x + w - 1, y, x + w, y + h, color);
+    }
+
+    private static Component merchantName(String id) {
+        return Component.translatableWithFallback("merchant.soloeconomy." + id, id);
+    }
+
+    private static Component merchantBlurb(String id) {
+        return Component.translatableWithFallback("merchant.soloeconomy." + id + ".desc", "");
+    }
+
+    /** Whole emeralds with thousands separators; the exact amount is a hover away. */
+    private static String wholeBalance() {
+        return String.format("%,d", ClientMarketState.balance() / EconomyAccount.CENTS_PER_EMERALD);
+    }
+
+    /** Button-sized total: cents until it reaches four figures. */
+    private static String shortTotal(long cents) {
+        return cents >= 1000 * EconomyAccount.CENTS_PER_EMERALD
+                ? String.format("%,d", cents / EconomyAccount.CENTS_PER_EMERALD)
+                : EconomyAccount.format(cents);
+    }
+
+    /** Cheap goods need decimals, expensive ones don't. */
     private static String formatPrice(float price) {
         if (price >= 100.0F) {
-            return String.format("%.0f", price);
+            return String.format("%,.0f", price);
         }
         if (price >= 10.0F) {
             return String.format("%.1f", price);
@@ -571,34 +655,13 @@ public class MarketScreen extends AbstractContainerScreen<MarketMenu> {
         return String.format("%.3f", price);
     }
 
-    private Component sortLabel() {
-        return switch (sort) {
-            case 1 -> Component.translatable("gui.soloeconomy.sort_cheap");
-            case 2 -> Component.translatable("gui.soloeconomy.sort_rich");
-            default -> Component.translatable("gui.soloeconomy.sort_name");
-        };
-    }
-
-    private Component bagLabel() {
-        return inventoryOnly
-                ? Component.translatable("gui.soloeconomy.filter_bag_on")
-                : Component.translatable("gui.soloeconomy.filter_bag_off");
-    }
-
-    private static Component quantityLabel(int index) {
-        int value = QUANTITIES[index];
-        return value == ServerMarketHandler.COUNT_MAX
-                ? Component.translatable("gui.soloeconomy.quantity_all")
-                : Component.literal(String.valueOf(value));
-    }
-
-    /** Marks the active quantity with brackets, since plain Buttons have no toggled state. */
-    private void refreshQuantityLabels() {
-        for (int i = 0; i < quantityButtons.size(); i++) {
-            Component label = quantityLabel(i);
-            quantityButtons.get(i).setMessage(i == quantityIndex
-                    ? Component.literal("[").append(label).append("]")
-                    : label);
+    private static Component supplyLine(float stockRatio) {
+        if (stockRatio > 1.25F) {
+            return Component.translatable("gui.soloeconomy.supply_glut").withStyle(ChatFormatting.RED);
         }
+        if (stockRatio < 0.8F) {
+            return Component.translatable("gui.soloeconomy.supply_short").withStyle(ChatFormatting.GREEN);
+        }
+        return Component.translatable("gui.soloeconomy.supply_normal").withStyle(ChatFormatting.GRAY);
     }
 }

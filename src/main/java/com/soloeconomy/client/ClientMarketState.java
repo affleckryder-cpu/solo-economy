@@ -1,6 +1,7 @@
 package com.soloeconomy.client;
 
 import com.soloeconomy.network.Listing;
+import com.soloeconomy.network.MarketListingsPayload;
 import com.soloeconomy.network.QuotePayload;
 
 import net.minecraft.world.item.Item;
@@ -13,8 +14,8 @@ import java.util.List;
 public final class ClientMarketState {
 
     private static long balance;
+    private static List<MarketListingsPayload.Merchant> merchants = List.of();
     private static List<Listing> listings = List.of();
-    private static boolean truncated;
     private static float spread = 0.1F;
 
     @Nullable
@@ -35,17 +36,18 @@ public final class ClientMarketState {
         return listings;
     }
 
-    public static boolean truncated() {
-        return truncated;
+    public static List<MarketListingsPayload.Merchant> merchants() {
+        return merchants;
     }
 
     public static float spread() {
         return spread;
     }
 
-    public static void setListings(List<Listing> newListings, boolean wasTruncated, float newSpread) {
+    public static void setListings(List<MarketListingsPayload.Merchant> newMerchants, List<Listing> newListings,
+                                   float newSpread) {
+        merchants = newMerchants;
         listings = newListings;
-        truncated = wasTruncated;
         spread = newSpread;
         // Prices just moved, so any cost preview we were showing is stale.
         quote = null;

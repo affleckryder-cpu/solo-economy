@@ -9,12 +9,10 @@ import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
 import net.minecraft.resources.ResourceLocation;
 
 /**
- * Client asks the server for everything matching a filter.
- *
- * <p>There is no page number: the whole match set comes back at once and the client scrolls it
- * locally, so dragging the scrollbar never waits on the network.
+ * Client asks for one merchant's goods, or - when {@code search} is not blank - for matches
+ * across every merchant.
  */
-public record MarketQueryPayload(String search, int sort, boolean inventoryOnly)
+public record MarketQueryPayload(String search, boolean inventoryOnly, String merchant)
         implements CustomPacketPayload {
 
     public static final Type<MarketQueryPayload> TYPE = new Type<>(
@@ -23,8 +21,8 @@ public record MarketQueryPayload(String search, int sort, boolean inventoryOnly)
     public static final StreamCodec<RegistryFriendlyByteBuf, MarketQueryPayload> STREAM_CODEC =
             StreamCodec.composite(
                     ByteBufCodecs.stringUtf8(64), MarketQueryPayload::search,
-                    ByteBufCodecs.VAR_INT, MarketQueryPayload::sort,
                     ByteBufCodecs.BOOL, MarketQueryPayload::inventoryOnly,
+                    ByteBufCodecs.stringUtf8(64), MarketQueryPayload::merchant,
                     MarketQueryPayload::new);
 
     @Override

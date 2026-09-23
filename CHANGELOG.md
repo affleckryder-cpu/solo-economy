@@ -1,3 +1,36 @@
+# Solo Economy 0.2.0
+
+**Minecraft 1.21.1 · NeoForge (built on 21.1.209) · Java 21**
+
+## Merchants
+
+The market no longer buys and sells everything. It's now **eleven merchants**, each trading the goods their work needs: Farmer, Butcher, Fisherman, Woodcutter, Mason, Smith, Collector, Cleric, Tailor, Librarian and Fletcher.
+
+- **259 tradeable items**, down from 944. If no merchant has a reason to want something (dirt, netherrack, leaves), it can't be traded.
+- Some goods are wanted by more than one merchant. String sells to the Tailor, Fisherman and Fletcher.
+- Modpacks can change who trades what with `data/soloeconomy/merchants.json`, by item id or `#tag`.
+
+## New market screen
+
+- Rebuilt in the style of the console edition menus.
+- **Merchants down the left**, with the **Bank** at the bottom for deposits and withdrawals.
+- Every row shows its **sell price and buy price** side by side.
+- The **Sell** and **Buy** buttons show the exact total for your chosen quantity before you click.
+- **Search** looks across every merchant. **Only what I carry** filters the list to your inventory.
+- **Arrow keys** move through the list.
+- Removed the sort button. Each merchant lists its goods in a set order.
+
+## Changed
+
+- Your balance shows whole emeralds. Hover it in the market to see the exact amount.
+- The market screen loads only the merchant you're looking at, so it opens faster.
+
+## Upgrading
+
+Balances and market prices carry over. Items you were holding that no merchant trades can no longer be sold.
+
+---
+
 # Solo Economy 0.1.1
 
 **Minecraft 1.21.1 · NeoForge (built on 21.1.209) · Java 21**

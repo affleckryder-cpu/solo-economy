@@ -5,6 +5,9 @@ import com.soloeconomy.config.EconomyConfig;
 
 import net.minecraft.core.HolderLookup;
 import net.minecraft.core.registries.BuiltInRegistries;
+import net.minecraft.core.registries.Registries;
+import net.minecraft.resources.ResourceLocation;
+import net.minecraft.tags.TagKey;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
@@ -23,6 +26,7 @@ import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -69,20 +73,24 @@ public final class MarketCatalog {
 
     private final Map<Item, Double> primitivePrices;
     private final Map<Item, Bundle> bundles;
+    private final List<Merchant> merchants;
+    private final Set<Item> listed = new HashSet<>();
     private final List<Item> sortedItems;
     private List<MarketAudit.LoopRisk> loopRisks = List.of();
     private List<CraftPath> recipes = List.of();
 
-    private MarketCatalog(Map<Item, Double> primitivePrices, Map<Item, Bundle> bundles) {
+    private MarketCatalog(Map<Item, Double> primitivePrices, Map<Item, Bundle> bundles, List<Merchant> merchants) {
         this.primitivePrices = primitivePrices;
         this.bundles = bundles;
-        List<Item> items = new ArrayList<>(bundles.keySet());
+        this.merchants = merchants;
+        merchants.forEach(merchant -> listed.addAll(merchant.items()));
+        List<Item> items = new ArrayList<>(listed);
         items.sort((a, b) -> BuiltInRegistries.ITEM.getKey(a).compareTo(BuiltInRegistries.ITEM.getKey(b)));
         this.sortedItems = Collections.unmodifiableList(items);
     }
 
     public static MarketCatalog empty() {
-        return new MarketCatalog(Map.of(), Map.of());
+        return new MarketCatalog(Map.of(), Map.of(), List.of());
     }
 
     public static MarketCatalog active() {
@@ -93,9 +101,24 @@ public final class MarketCatalog {
         active = catalog;
     }
 
-    /** Tradeable means we know what it is made of, which for a primitive is itself. */
+    /** Tradeable means some merchant deals in it. Pricing works for more items than that. */
     public boolean isTradeable(Item item) {
-        return bundles.containsKey(item);
+        return listed.contains(item);
+    }
+
+    public List<Merchant> merchants() {
+        return merchants;
+    }
+
+    /** The named merchant, or the first one if the id is unknown. Null only with no merchants at all. */
+    @Nullable
+    public Merchant merchant(String id) {
+        for (Merchant merchant : merchants) {
+            if (merchant.id().equals(id)) {
+                return merchant;
+            }
+        }
+        return merchants.isEmpty() ? null : merchants.get(0);
     }
 
     public boolean isPrimitive(Item item) {
@@ -140,7 +163,7 @@ public final class MarketCatalog {
     }
 
     public int size() {
-        return bundles.size();
+        return listed.size();
     }
 
     /** Every recipe the catalogue was built from, for re-auditing under other assumptions. */
@@ -159,6 +182,7 @@ public final class MarketCatalog {
 
     public static MarketCatalog build(Map<Item, Double> seeds,
                                       Set<Item> blocked,
+                                      List<MerchantLoader.Definition> merchantDefinitions,
                                       RecipeManager recipeManager,
                                       HolderLookup.Provider registries) {
         Map<Item, Double> primitives = new HashMap<>();
@@ -187,16 +211,47 @@ public final class MarketCatalog {
             primitives.remove(item);
         }
 
-        SoloEconomy.LOGGER.info(
-                "Market catalog built: {} primitives priced by hand, {} items priced as bundles of them, "
-                        + "{} tradeable in total",
-                primitives.size(), bundles.size() - primitives.size(), bundles.size());
-
-        MarketCatalog catalog = new MarketCatalog(primitives, bundles);
+        MarketCatalog catalog = new MarketCatalog(primitives, bundles, resolveMerchants(merchantDefinitions, bundles));
+        SoloEconomy.LOGGER.info("Market catalog built: {} priced items, {} traded by {} merchants",
+                bundles.size(), catalog.size(), catalog.merchants().size());
         catalog.recipes = List.copyOf(nodes);
         catalog.loopRisks = MarketAudit.findLoops(catalog, nodes, EconomyConfig.INSTANCE.minimumSpread());
         reportLoops(catalog.loopRisks);
         return catalog;
+    }
+
+    /**
+     * Turns merchant definitions into item lists: tags expanded, order kept, duplicates dropped.
+     * Only priced items can be traded; an explicit id with no price is reported, since that is
+     * almost always a mistake in the datapack.
+     */
+    private static List<Merchant> resolveMerchants(List<MerchantLoader.Definition> definitions,
+                                                   Map<Item, Bundle> bundles) {
+        List<Merchant> merchants = new ArrayList<>();
+        for (MerchantLoader.Definition definition : definitions) {
+            Set<Item> items = new LinkedHashSet<>();
+            for (String entry : definition.entries()) {
+                boolean tag = entry.startsWith("#");
+                ResourceLocation id = ResourceLocation.tryParse(tag ? entry.substring(1) : entry);
+                if (id == null) {
+                    SoloEconomy.LOGGER.warn("Merchant {}: malformed entry '{}'", definition.id(), entry);
+                } else if (tag) {
+                    BuiltInRegistries.ITEM.getTag(TagKey.create(Registries.ITEM, id)).ifPresent(set -> set.forEach(
+                            holder -> {
+                                if (bundles.containsKey(holder.value())) {
+                                    items.add(holder.value());
+                                }
+                            }));
+                } else if (BuiltInRegistries.ITEM.containsKey(id) && bundles.containsKey(BuiltInRegistries.ITEM.get(id))) {
+                    items.add(BuiltInRegistries.ITEM.get(id));
+                } else {
+                    SoloEconomy.LOGGER.warn("Merchant {}: '{}' is unknown or has no price, skipping it",
+                            definition.id(), entry);
+                }
+            }
+            merchants.add(new Merchant(definition.id(), definition.icon(), List.copyOf(items)));
+        }
+        return List.copyOf(merchants);
     }
 
     /**
@@ -494,6 +549,10 @@ public final class MarketCatalog {
      * @param craftSteps how deep the crafting chain was, which sets the assembly fee on buying
      */
     public record Bundle(Map<Item, Double> contents, int craftSteps) {
+    }
+
+    /** Someone with a reason to trade: an id for its lang keys, an icon, and its goods in display order. */
+    public record Merchant(String id, Item icon, List<Item> items) {
     }
 
     /** One recipe, reduced to what pricing cares about. */

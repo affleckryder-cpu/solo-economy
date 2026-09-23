@@ -39,10 +39,10 @@ public final class MarketAudit {
         List<LoopRisk> risks = new ArrayList<>();
 
         for (MarketCatalog.CraftPath recipe : recipes) {
-            MarketCatalog.Bundle output = catalog.bundle(recipe.result());
-            if (output == null) {
-                continue; // the market will not buy the result, so there is nothing to sell into
+            if (!catalog.isTradeable(recipe.result())) {
+                continue; // no merchant buys the result, so there is nothing to sell into
             }
+            MarketCatalog.Bundle output = catalog.bundle(recipe.result());
 
             double revenue = rawValue(catalog, output) * recipe.resultCount() * (1.0D - spread);
             double cost = 0.0D;
@@ -53,11 +53,10 @@ public final class MarketAudit {
                 double cheapest = Double.MAX_VALUE;
                 Item cheapestItem = null;
                 for (Item choice : choices) {
-                    MarketCatalog.Bundle bundle = catalog.bundle(choice);
-                    if (bundle == null) {
-                        continue;
+                    if (!catalog.isTradeable(choice)) {
+                        continue; // no merchant sells it, so it can't be bought
                     }
-                    double net = rawValue(catalog, bundle) * (1.0D + spread) - refund(catalog, choice, spread);
+                    double net = rawValue(catalog, catalog.bundle(choice)) * (1.0D + spread) - refund(catalog, choice, spread);
                     if (net < cheapest) {
                         cheapest = net;
                         cheapestItem = choice;
@@ -93,11 +92,10 @@ public final class MarketAudit {
         if (remainder.isEmpty()) {
             return 0.0D;
         }
-        MarketCatalog.Bundle bundle = catalog.bundle(remainder.getItem());
-        if (bundle == null) {
-            return 0.0D;
+        if (!catalog.isTradeable(remainder.getItem())) {
+            return 0.0D; // nobody will buy the returned container back
         }
-        return rawValue(catalog, bundle) * remainder.getCount() * (1.0D - spread);
+        return rawValue(catalog, catalog.bundle(remainder.getItem())) * remainder.getCount() * (1.0D - spread);
     }
 
     /** A recipe that pays more to sell than its inputs cost to buy. */

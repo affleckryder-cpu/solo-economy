@@ -9,25 +9,16 @@ import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.inventory.AbstractContainerMenu;
 import net.minecraft.world.inventory.ContainerLevelAccess;
-import net.minecraft.world.inventory.Slot;
 import net.minecraft.world.item.ItemStack;
 
 /**
  * Menu for the Market Stall.
  *
- * <p>The shop side is not made of slots - the catalogue is far too large for that, so listings and
- * trades travel as payloads instead. This menu exists to carry the player's inventory (you sell
- * out of it and buy into it), to scope trade packets to an open stall, and to remember whether the
- * stall this session is attached to has a broker working it.
+ * <p>It has no slots. The catalogue travels as payloads, and the player's own goods are browsed
+ * through the "Your items" tab rather than an inventory grid. The menu exists to scope trade
+ * packets to an open stall and to remember whether a broker is working it.
  */
 public class MarketMenu extends AbstractContainerMenu {
-
-    public static final int INVENTORY_X = 8;
-    public static final int INVENTORY_Y = 174;
-    public static final int HOTBAR_Y = 232;
-
-    private static final int MAIN_SLOT_COUNT = 27;
-    private static final int TOTAL_SLOT_COUNT = 36;
 
     private final ContainerLevelAccess access;
     private final BlockPos stallPos;
@@ -45,16 +36,6 @@ public class MarketMenu extends AbstractContainerMenu {
         this.access = inventory.player.level().isClientSide()
                 ? ContainerLevelAccess.NULL
                 : ContainerLevelAccess.create(inventory.player.level(), stallPos);
-
-        for (int row = 0; row < 3; row++) {
-            for (int col = 0; col < 9; col++) {
-                addSlot(new Slot(inventory, 9 + row * 9 + col,
-                        INVENTORY_X + col * 18, INVENTORY_Y + row * 18));
-            }
-        }
-        for (int col = 0; col < 9; col++) {
-            addSlot(new Slot(inventory, col, INVENTORY_X + col * 18, HOTBAR_Y));
-        }
     }
 
     public BlockPos stallPos() {
@@ -78,34 +59,8 @@ public class MarketMenu extends AbstractContainerMenu {
         return AbstractContainerMenu.stillValid(access, player, ModBlocks.MARKET_STALL.get());
     }
 
-    /** Only player inventory slots exist here, so shift-click just swaps between the two halves. */
     @Override
     public ItemStack quickMoveStack(Player player, int index) {
-        Slot slot = slots.get(index);
-        if (!slot.hasItem()) {
-            return ItemStack.EMPTY;
-        }
-
-        ItemStack stack = slot.getItem();
-        ItemStack original = stack.copy();
-
-        if (index < MAIN_SLOT_COUNT) {
-            if (!moveItemStackTo(stack, MAIN_SLOT_COUNT, TOTAL_SLOT_COUNT, false)) {
-                return ItemStack.EMPTY;
-            }
-        } else if (!moveItemStackTo(stack, 0, MAIN_SLOT_COUNT, false)) {
-            return ItemStack.EMPTY;
-        }
-
-        if (stack.isEmpty()) {
-            slot.set(ItemStack.EMPTY);
-        } else {
-            slot.setChanged();
-        }
-        if (stack.getCount() == original.getCount()) {
-            return ItemStack.EMPTY;
-        }
-        slot.onTake(player, stack);
-        return original;
+        return ItemStack.EMPTY; // no slots to move between
     }
 }

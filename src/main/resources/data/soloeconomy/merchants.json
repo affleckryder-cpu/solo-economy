@@ -1,0 +1,163 @@
+{
+  "_comment": [
+    "Who trades what at the Market Stall. Only items listed under a merchant can be bought or sold,",
+    "so everything on the market has someone with a reason to want it.",
+    "",
+    "Entries are item ids or #item_tags. Order here is the order shown in the menu. Names and",
+    "descriptions come from the lang keys merchant.soloeconomy.<id> and merchant.soloeconomy.<id>.desc.",
+    "Datapacks stack: a merchant with the same id replaces this one, a new id adds a merchant, and",
+    "\"replace\": true starts from nothing. Listed items still need a price - see base_prices.json."
+  ],
+
+  "replace": false,
+
+  "merchants": [
+    {
+      "id": "farmer",
+      "icon": "minecraft:wheat",
+      "items": [
+        "minecraft:wheat", "minecraft:wheat_seeds", "minecraft:hay_block", "minecraft:bread",
+        "minecraft:carrot", "minecraft:potato", "minecraft:baked_potato",
+        "minecraft:beetroot", "minecraft:beetroot_seeds",
+        "minecraft:pumpkin", "minecraft:pumpkin_seeds", "minecraft:pumpkin_pie",
+        "minecraft:melon_slice", "minecraft:melon_seeds",
+        "minecraft:sugar_cane", "minecraft:sugar", "minecraft:cocoa_beans",
+        "minecraft:sweet_berries", "minecraft:glow_berries", "minecraft:apple", "minecraft:egg",
+        "minecraft:bone_meal", "#minecraft:saplings",
+        "minecraft:cactus", "minecraft:bamboo", "minecraft:brown_mushroom", "minecraft:red_mushroom"
+      ]
+    },
+    {
+      "id": "butcher",
+      "icon": "minecraft:cooked_beef",
+      "items": [
+        "minecraft:beef", "minecraft:cooked_beef",
+        "minecraft:porkchop", "minecraft:cooked_porkchop",
+        "minecraft:chicken", "minecraft:cooked_chicken",
+        "minecraft:mutton", "minecraft:cooked_mutton",
+        "minecraft:rabbit", "minecraft:cooked_rabbit", "minecraft:rabbit_stew",
+        "minecraft:coal", "minecraft:charcoal"
+      ]
+    },
+    {
+      "id": "fisherman",
+      "icon": "minecraft:cod",
+      "items": [
+        "minecraft:cod", "minecraft:cooked_cod",
+        "minecraft:salmon", "minecraft:cooked_salmon",
+        "minecraft:tropical_fish", "minecraft:pufferfish",
+        "minecraft:kelp", "minecraft:dried_kelp", "minecraft:dried_kelp_block",
+        "minecraft:sea_pickle", "minecraft:lily_pad",
+        "minecraft:prismarine_shard", "minecraft:prismarine_crystals",
+        "minecraft:string", "minecraft:fishing_rod"
+      ]
+    },
+    {
+      "id": "woodcutter",
+      "icon": "minecraft:oak_log",
+      "items": [
+        "#minecraft:logs", "#minecraft:planks",
+        "minecraft:stick", "minecraft:charcoal",
+        "minecraft:crafting_table", "minecraft:chest", "minecraft:barrel", "minecraft:ladder"
+      ]
+    },
+    {
+      "id": "mason",
+      "icon": "minecraft:stone_bricks",
+      "items": [
+        "minecraft:cobblestone", "minecraft:stone", "minecraft:smooth_stone", "minecraft:stone_bricks",
+        "minecraft:mossy_cobblestone",
+        "minecraft:andesite", "minecraft:polished_andesite",
+        "minecraft:diorite", "minecraft:polished_diorite",
+        "minecraft:granite", "minecraft:polished_granite",
+        "minecraft:cobbled_deepslate", "minecraft:deepslate", "minecraft:polished_deepslate",
+        "minecraft:deepslate_bricks", "minecraft:deepslate_tiles",
+        "minecraft:tuff", "minecraft:calcite",
+        "minecraft:sand", "minecraft:gravel", "minecraft:glass",
+        "minecraft:sandstone", "minecraft:red_sandstone",
+        "minecraft:clay_ball", "minecraft:clay", "minecraft:brick", "minecraft:bricks",
+        "minecraft:terracotta", "minecraft:quartz_block"
+      ]
+    },
+    {
+      "id": "smith",
+      "icon": "minecraft:iron_ingot",
+      "items": [
+        "minecraft:coal",
+        "minecraft:raw_iron", "minecraft:iron_ingot", "minecraft:iron_nugget", "minecraft:iron_block",
+        "minecraft:raw_copper", "minecraft:copper_ingot",
+        "minecraft:raw_gold", "minecraft:gold_ingot", "minecraft:gold_nugget",
+        "minecraft:iron_pickaxe", "minecraft:iron_axe", "minecraft:iron_shovel",
+        "minecraft:iron_hoe", "minecraft:iron_sword",
+        "minecraft:iron_helmet", "minecraft:iron_chestplate",
+        "minecraft:iron_leggings", "minecraft:iron_boots",
+        "minecraft:diamond_pickaxe", "minecraft:diamond_axe", "minecraft:diamond_sword",
+        "minecraft:shield", "minecraft:bucket", "minecraft:shears", "minecraft:flint_and_steel",
+        "minecraft:chain", "minecraft:iron_bars", "minecraft:anvil"
+      ]
+    },
+    {
+      "id": "collector",
+      "icon": "minecraft:diamond",
+      "items": [
+        "minecraft:diamond", "minecraft:diamond_block",
+        "minecraft:lapis_lazuli", "minecraft:lapis_block",
+        "minecraft:amethyst_shard", "minecraft:quartz", "minecraft:gold_block",
+        "minecraft:ancient_debris", "minecraft:netherite_scrap", "minecraft:netherite_ingot",
+        "minecraft:nautilus_shell", "minecraft:heart_of_the_sea",
+        "minecraft:echo_shard", "minecraft:shulker_shell", "minecraft:nether_star",
+        "minecraft:totem_of_undying", "minecraft:trident", "minecraft:elytra",
+        "minecraft:saddle", "minecraft:name_tag", "minecraft:sniffer_egg", "minecraft:heavy_core"
+      ]
+    },
+    {
+      "id": "cleric",
+      "icon": "minecraft:glowstone_dust",
+      "items": [
+        "minecraft:rotten_flesh", "minecraft:bone", "minecraft:spider_eye",
+        "minecraft:fermented_spider_eye", "minecraft:gunpowder",
+        "minecraft:ender_pearl", "minecraft:ender_eye",
+        "minecraft:blaze_rod", "minecraft:blaze_powder", "minecraft:ghast_tear",
+        "minecraft:slime_ball", "minecraft:magma_cream",
+        "minecraft:glowstone_dust", "minecraft:redstone", "minecraft:nether_wart",
+        "minecraft:glass_bottle", "minecraft:phantom_membrane", "minecraft:rabbit_foot",
+        "minecraft:glistering_melon_slice", "minecraft:golden_carrot",
+        "minecraft:experience_bottle", "minecraft:dragon_breath",
+        "minecraft:breeze_rod", "minecraft:wind_charge"
+      ]
+    },
+    {
+      "id": "tailor",
+      "icon": "minecraft:white_wool",
+      "items": [
+        "#minecraft:wool", "minecraft:string",
+        "minecraft:leather", "minecraft:rabbit_hide",
+        "minecraft:leather_helmet", "minecraft:leather_chestplate",
+        "minecraft:leather_leggings", "minecraft:leather_boots",
+        "minecraft:white_dye", "minecraft:light_gray_dye", "minecraft:gray_dye", "minecraft:black_dye",
+        "minecraft:brown_dye", "minecraft:red_dye", "minecraft:orange_dye", "minecraft:yellow_dye",
+        "minecraft:lime_dye", "minecraft:green_dye", "minecraft:cyan_dye", "minecraft:light_blue_dye",
+        "minecraft:blue_dye", "minecraft:purple_dye", "minecraft:magenta_dye", "minecraft:pink_dye"
+      ]
+    },
+    {
+      "id": "librarian",
+      "icon": "minecraft:book",
+      "items": [
+        "minecraft:paper", "minecraft:book", "minecraft:bookshelf", "minecraft:lectern",
+        "minecraft:ink_sac", "minecraft:glow_ink_sac", "minecraft:feather",
+        "minecraft:map", "minecraft:compass", "minecraft:clock",
+        "minecraft:lantern", "minecraft:candle"
+      ]
+    },
+    {
+      "id": "fletcher",
+      "icon": "minecraft:bow",
+      "items": [
+        "minecraft:stick", "minecraft:flint", "minecraft:feather", "minecraft:string",
+        "minecraft:arrow", "minecraft:spectral_arrow",
+        "minecraft:bow", "minecraft:crossbow", "minecraft:target"
+      ]
+    }
+  ]
+}
