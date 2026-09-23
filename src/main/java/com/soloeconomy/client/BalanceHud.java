@@ -32,7 +32,7 @@ public final class BalanceHud {
             return;
         }
 
-        String text = EconomyAccount.format(ClientMarketState.balance());
+        String text = Long.toString(ClientMarketState.balance() / EconomyAccount.CENTS_PER_EMERALD);
         int textWidth = minecraft.font.width(text);
         int boxWidth = 22 + textWidth + 6;
         int x = graphics.guiWidth() - boxWidth - PADDING;

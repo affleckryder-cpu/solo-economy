@@ -486,16 +486,31 @@ public class MarketScreen extends AbstractContainerScreen<MarketMenu> {
         graphics.drawString(font, title, titleLabelX, titleLabelY, COLOR_TEXT, false);
         graphics.drawString(font, playerInventoryTitle, inventoryLabelX, inventoryLabelY, COLOR_MUTED, false);
 
-        String balance = Component.translatable("gui.soloeconomy.balance",
-                EconomyAccount.format(ClientMarketState.balance())).getString();
+        String balance = wholeBalanceLabel();
         graphics.drawString(font, balance, imageWidth - 8 - font.width(balance), 6, COLOR_SELL, false);
+    }
+
+    /** Whole emeralds only; the exact amount is one hover away. Floored, matching what Withdraw gives. */
+    private String wholeBalanceLabel() {
+        return Component.translatable("gui.soloeconomy.balance",
+                ClientMarketState.balance() / EconomyAccount.CENTS_PER_EMERALD).getString();
     }
 
     @Override
     public void render(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
         super.render(graphics, mouseX, mouseY, partialTick);
         renderRowTooltip(graphics, mouseX, mouseY);
+        renderBalanceTooltip(graphics, mouseX, mouseY);
         renderTooltip(graphics, mouseX, mouseY);
+    }
+
+    private void renderBalanceTooltip(GuiGraphics graphics, int mouseX, int mouseY) {
+        int right = leftPos + imageWidth - 8;
+        int left = right - font.width(wholeBalanceLabel());
+        if (mouseX >= left && mouseX < right && mouseY >= topPos + 5 && mouseY < topPos + 15) {
+            graphics.renderTooltip(font, Component.translatable("gui.soloeconomy.balance",
+                    EconomyAccount.format(ClientMarketState.balance())), mouseX, mouseY);
+        }
     }
 
     private void renderRowTooltip(GuiGraphics graphics, int mouseX, int mouseY) {
