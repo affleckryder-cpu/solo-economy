@@ -2,7 +2,9 @@ package com.soloeconomy.gametest;
 
 import com.soloeconomy.SoloEconomy;
 import com.soloeconomy.config.EconomyConfig;
+import com.soloeconomy.event.ServerEvents;
 import com.soloeconomy.market.BasePriceLoader;
+import com.soloeconomy.market.Discovery;
 import com.soloeconomy.market.EconomyAccount;
 import com.soloeconomy.market.MarketAudit;
 import com.soloeconomy.market.MarketCatalog;
@@ -14,7 +16,9 @@ import net.minecraft.gametest.framework.GameTest;
 import net.minecraft.gametest.framework.GameTestHelper;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.server.MinecraftServer;
+import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.item.Item;
+import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.neoforged.neoforge.gametest.GameTestHolder;
 import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
@@ -237,6 +241,99 @@ public final class EconomyGameTests {
         if (Math.abs(gapAfterADay - expected) > 1.0e-6D * Math.max(1.0D, Math.abs(gapBefore))) {
             helper.fail(String.format("After one day the diamond glut should be %.3f over normal, was %.3f",
                     expected, gapAfterADay));
+        }
+        helper.succeed();
+    }
+
+    /**
+     * A price set with /soloeconomy price must win over base_prices.json, and crafted items must
+     * follow it. Reset must bring the default back. Runs the real command, parsing and all.
+     */
+    @GameTest(template = TEMPLATE)
+    public static void priceOverridesWinAndCraftedItemsFollow(GameTestHelper helper) {
+        MinecraftServer server = helper.getLevel().getServer();
+        List<? extends String> saved = EconomyConfig.INSTANCE.priceOverrides.get();
+        double savedMultiplier = EconomyConfig.INSTANCE.priceMultiplier.get();
+        try {
+            EconomyConfig.INSTANCE.priceOverrides.set(List.of());
+            EconomyConfig.INSTANCE.priceMultiplier.set(1.0D);
+            ServerEvents.rebuildCatalog(server);
+            double defaultPrice = MarketCatalog.active().primitivePrice(Items.DIAMOND);
+
+            server.getCommands().performPrefixedCommand(server.createCommandSourceStack(),
+                    "soloeconomy price minecraft:diamond set 100");
+            double spread = EconomyConfig.INSTANCE.spread.get();
+            double blockSale = new MarketData().quoteSell(Items.DIAMOND_BLOCK, 1, 0L, spread).exactValue();
+            if (MarketCatalog.active().primitivePrice(Items.DIAMOND) != 100.0D || blockSale < 9 * 100 * (1 - spread) * 0.9D) {
+                helper.fail(String.format("Override ignored: diamond %.2f, diamond block sells for %.2f",
+                        MarketCatalog.active().primitivePrice(Items.DIAMOND), blockSale));
+            }
+
+            server.getCommands().performPrefixedCommand(server.createCommandSourceStack(),
+                    "soloeconomy price minecraft:diamond reset");
+            if (MarketCatalog.active().primitivePrice(Items.DIAMOND) != defaultPrice) {
+                helper.fail("Clearing the override did not restore the default diamond price");
+            }
+        } finally {
+            EconomyConfig.INSTANCE.priceOverrides.set(saved);
+            EconomyConfig.INSTANCE.priceMultiplier.set(savedMultiplier);
+            EconomyConfig.INSTANCE.priceOverrides.save(); // the command saved the file; put it back
+            ServerEvents.rebuildCatalog(server);
+        }
+        helper.succeed();
+    }
+
+    /**
+     * priceMultiplier must scale what things cost without changing how deep their markets are,
+     * or raising prices would quietly make them swing harder too.
+     */
+    @GameTest(template = TEMPLATE)
+    public static void priceMultiplierScalesPricesNotDepth(GameTestHelper helper) {
+        MinecraftServer server = helper.getLevel().getServer();
+        double saved = EconomyConfig.INSTANCE.priceMultiplier.get();
+        List<? extends String> savedOverrides = EconomyConfig.INSTANCE.priceOverrides.get();
+        try {
+            EconomyConfig.INSTANCE.priceOverrides.set(List.of());
+            EconomyConfig.INSTANCE.priceMultiplier.set(1.0D);
+            ServerEvents.rebuildCatalog(server);
+            double price = MarketCatalog.active().primitivePrice(Items.DIAMOND);
+            double depth = MarketCatalog.active().baseStock(Items.DIAMOND);
+
+            EconomyConfig.INSTANCE.priceMultiplier.set(3.0D);
+            ServerEvents.rebuildCatalog(server);
+            double tripled = MarketCatalog.active().primitivePrice(Items.DIAMOND);
+            double tripledDepth = MarketCatalog.active().baseStock(Items.DIAMOND);
+            if (Math.abs(tripled - 3 * price) > EPSILON || Math.abs(tripledDepth - depth) > EPSILON) {
+                helper.fail(String.format("x3 gave diamond %.3f (was %.3f), depth %.1f (was %.1f)",
+                        tripled, price, tripledDepth, depth));
+            }
+        } finally {
+            EconomyConfig.INSTANCE.priceOverrides.set(savedOverrides);
+            EconomyConfig.INSTANCE.priceMultiplier.set(saved);
+            ServerEvents.rebuildCatalog(server);
+        }
+        helper.succeed();
+    }
+
+    /** Nothing is buyable until found, carrying it unlocks it, and only tradeable things count. */
+    @GameTest(template = TEMPLATE)
+    public static void carryingAnItemUnlocksBuyingIt(GameTestHelper helper) {
+        ServerEvents.rebuildCatalog(helper.getLevel().getServer());
+        ServerPlayer player = helper.makeMockServerPlayerInLevel();
+        if (Discovery.canBuy(player, Items.DIAMOND)) {
+            helper.fail("A new player can already buy diamonds");
+        }
+        player.getInventory().add(new ItemStack(Items.DIAMOND));
+        player.getInventory().add(new ItemStack(Items.DIRT));
+        Discovery.discoverCarried(player);
+        if (!Discovery.canBuy(player, Items.DIAMOND)) {
+            helper.fail("Carrying a diamond did not unlock buying diamonds");
+        }
+        if (Discovery.canBuy(player, Items.DIAMOND_BLOCK)) {
+            helper.fail("Carrying a diamond unlocked diamond blocks too");
+        }
+        if (Discovery.canBuy(player, Items.DIRT)) {
+            helper.fail("Dirt, which no merchant trades, was recorded as discovered");
         }
         helper.succeed();
     }

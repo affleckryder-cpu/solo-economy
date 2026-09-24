@@ -149,8 +149,10 @@ public final class MarketCatalog {
         if (price <= 0.0D) {
             return MIN_BASE_STOCK;
         }
+        // Depth follows the unmultiplied price, so priceMultiplier changes prices but not how fast they move.
         double depth = EconomyConfig.INSTANCE.marketDepth.get()
-                * Math.pow(price, -EconomyConfig.INSTANCE.depthPriceExponent.get());
+                * Math.pow(price / EconomyConfig.INSTANCE.priceMultiplier.get(),
+                        -EconomyConfig.INSTANCE.depthPriceExponent.get());
         return Math.max(MIN_BASE_STOCK, depth);
     }
 

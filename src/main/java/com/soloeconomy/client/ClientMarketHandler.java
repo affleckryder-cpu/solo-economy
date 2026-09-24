@@ -15,7 +15,7 @@ public final class ClientMarketHandler {
 
     public static void handleListings(MarketListingsPayload payload, IPayloadContext context) {
         context.enqueueWork(() -> {
-            ClientMarketState.setListings(payload.merchants(), payload.listings(), payload.spread());
+            ClientMarketState.setListings(payload.merchants(), payload.listings(), payload.carried(), payload.spread());
             ClientMarketState.setBalance(payload.balance());
             if (Minecraft.getInstance().screen instanceof MarketScreen screen) {
                 screen.onListingsChanged();

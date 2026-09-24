@@ -8,7 +8,9 @@ import net.minecraft.world.item.Item;
 
 import javax.annotation.Nullable;
 
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 /** Client-side mirror of what the server last told us. Never trusted for pricing. */
 public final class ClientMarketState {
@@ -16,6 +18,7 @@ public final class ClientMarketState {
     private static long balance;
     private static List<MarketListingsPayload.Merchant> merchants = List.of();
     private static List<Listing> listings = List.of();
+    private static Map<Item, Listing> carried = Map.of();
     private static float spread = 0.1F;
 
     @Nullable
@@ -36,6 +39,12 @@ public final class ClientMarketState {
         return listings;
     }
 
+    /** Prices for what the player carries, or null for anything no merchant buys. */
+    @Nullable
+    public static Listing carried(Item item) {
+        return carried.get(item);
+    }
+
     public static List<MarketListingsPayload.Merchant> merchants() {
         return merchants;
     }
@@ -45,9 +54,12 @@ public final class ClientMarketState {
     }
 
     public static void setListings(List<MarketListingsPayload.Merchant> newMerchants, List<Listing> newListings,
-                                   float newSpread) {
+                                   List<Listing> newCarried, float newSpread) {
         merchants = newMerchants;
         listings = newListings;
+        Map<Item, Listing> byItem = new HashMap<>();
+        newCarried.forEach(listing -> byItem.put(listing.item(), listing));
+        carried = byItem;
         spread = newSpread;
         // Prices just moved, so any cost preview we were showing is stale.
         quote = null;

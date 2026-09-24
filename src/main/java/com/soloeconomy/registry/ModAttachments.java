@@ -3,11 +3,15 @@ package com.soloeconomy.registry;
 import com.mojang.serialization.Codec;
 import com.soloeconomy.SoloEconomy;
 
+import net.minecraft.resources.ResourceLocation;
 import net.neoforged.bus.api.IEventBus;
 import net.neoforged.neoforge.attachment.AttachmentType;
 import net.neoforged.neoforge.registries.DeferredRegister;
 import net.neoforged.neoforge.registries.NeoForgeRegistries;
 
+import java.util.HashSet;
+import java.util.List;
+import java.util.Set;
 import java.util.function.Supplier;
 
 /**
@@ -33,6 +37,16 @@ public final class ModAttachments {
     public static final Supplier<AttachmentType<Long>> LEGACY_BALANCE = ATTACHMENT_TYPES.register("balance",
             () -> AttachmentType.builder(() -> 0L)
                     .serialize(Codec.LONG)
+                    .copyOnDeath()
+                    .build());
+
+    /**
+     * Items this player has unlocked for buying; see Discovery. Stored as ids, not items, so a
+     * removed mod's items don't make the whole set fail to load.
+     */
+    public static final Supplier<AttachmentType<Set<ResourceLocation>>> DISCOVERED = ATTACHMENT_TYPES.register("discovered",
+            () -> AttachmentType.<Set<ResourceLocation>>builder(() -> new HashSet<>())
+                    .serialize(ResourceLocation.CODEC.listOf().<Set<ResourceLocation>>xmap(HashSet::new, List::copyOf))
                     .copyOnDeath()
                     .build());
 

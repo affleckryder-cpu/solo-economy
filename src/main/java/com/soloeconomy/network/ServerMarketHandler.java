@@ -1,5 +1,6 @@
 package com.soloeconomy.network;
 
+import com.soloeconomy.market.Discovery;
 import com.soloeconomy.market.EconomyAccount;
 import com.soloeconomy.market.MarketCatalog;
 import com.soloeconomy.market.MarketData;
@@ -52,12 +53,22 @@ public final class ServerMarketHandler {
         MarketData data = MarketData.get(player.server);
         long gameTime = player.level().getGameTime();
         double spread = menu.spread();
+        Discovery.discoverCarried(player);
 
         // A search looks across every merchant; otherwise show one merchant's goods in their own order.
         String search = payload.search().trim().toLowerCase(Locale.ROOT);
         MarketCatalog.Merchant merchant = catalog.merchant(payload.merchant());
         List<Item> source = !search.isEmpty() ? catalog.tradeableItems()
                 : merchant != null ? merchant.items() : List.of();
+
+        List<Listing> carried = new ArrayList<>();
+        for (int slot = 0; slot < TRADEABLE_SLOTS; slot++) {
+            ItemStack stack = player.getInventory().getItem(slot);
+            Item item = stack.getItem();
+            if (isTradeableStack(stack) && catalog.isTradeable(item) && carried.stream().noneMatch(l -> l.item() == item)) {
+                carried.add(listing(data, player, item, gameTime, spread));
+            }
+        }
 
         List<Listing> listings = new ArrayList<>();
         for (Item item : source) {
@@ -67,18 +78,23 @@ public final class ServerMarketHandler {
             if (payload.inventoryOnly() && countInInventory(player.getInventory(), item) <= 0) {
                 continue;
             }
-            listings.add(new Listing(
-                    item,
-                    (float) data.spotBuyPrice(item, gameTime, spread),
-                    (float) data.spotSellPrice(item, gameTime, spread),
-                    (float) data.supplyRatio(item, gameTime)));
+            listings.add(listing(data, player, item, gameTime, spread));
         }
 
         List<MarketListingsPayload.Merchant> merchants = new ArrayList<>();
         for (MarketCatalog.Merchant m : catalog.merchants()) {
             merchants.add(new MarketListingsPayload.Merchant(m.id(), m.icon()));
         }
-        context.reply(new MarketListingsPayload(merchants, listings, (float) spread, EconomyAccount.balance(player)));
+        context.reply(new MarketListingsPayload(merchants, listings, carried, (float) spread,
+                EconomyAccount.balance(player)));
+    }
+
+    private static Listing listing(MarketData data, ServerPlayer player, Item item, long gameTime, double spread) {
+        return new Listing(item,
+                (float) data.spotBuyPrice(item, gameTime, spread),
+                (float) data.spotSellPrice(item, gameTime, spread),
+                (float) data.supplyRatio(item, gameTime),
+                !Discovery.canBuy(player, item));
     }
 
     /**
@@ -110,7 +126,8 @@ public final class ServerMarketHandler {
                 ? data.quoteSell(item, sellCount, gameTime, spread).cents()
                 : 0L;
 
-        int buyCount = wantsMax
+        int buyCount = !Discovery.canBuy(player, item) ? 0
+                : wantsMax
                 ? data.maxAffordable(item, EconomyAccount.balance(player), gameTime, spread, MAX_TRADE_COUNT)
                 : requested;
         long buyTotal = buyCount > 0
@@ -151,6 +168,11 @@ public final class ServerMarketHandler {
         boolean wantsMax = payload.count() == COUNT_MAX;
 
         if (payload.buying()) {
+            if (!Discovery.canBuy(player, item)) {
+                feedback(player, Component.translatable("message.soloeconomy.locked",
+                        new ItemStack(item).getHoverName()), true);
+                return;
+            }
             int requested = wantsMax
                     ? data.maxAffordable(item, EconomyAccount.balance(player), gameTime, spread, MAX_TRADE_COUNT)
                     : Mth.clamp(payload.count(), 1, MAX_TRADE_COUNT);
@@ -212,6 +234,7 @@ public final class ServerMarketHandler {
             return;
         }
 
+        Discovery.discover(player, item);
         // Take the goods first; only pay for what actually left the inventory.
         int removed = removeFromInventory(player.getInventory(), item, actual);
         if (removed <= 0) {

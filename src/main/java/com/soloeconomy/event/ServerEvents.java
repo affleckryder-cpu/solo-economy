@@ -1,6 +1,7 @@
 package com.soloeconomy.event;
 
 import com.soloeconomy.SoloEconomy;
+import com.soloeconomy.command.PriceCommand;
 import com.soloeconomy.config.EconomyConfig;
 import com.soloeconomy.market.BasePriceLoader;
 import com.soloeconomy.market.EconomyAccount;
@@ -10,13 +11,18 @@ import com.soloeconomy.registry.ModAttachments;
 
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.item.Item;
 import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.fml.common.EventBusSubscriber;
 import net.neoforged.neoforge.event.AddReloadListenerEvent;
 import net.neoforged.neoforge.event.OnDatapackSyncEvent;
+import net.neoforged.neoforge.event.RegisterCommandsEvent;
 import net.neoforged.neoforge.event.entity.player.PlayerEvent;
 import net.neoforged.neoforge.event.server.ServerStartedEvent;
 import net.neoforged.neoforge.event.server.ServerStoppedEvent;
+
+import java.util.HashMap;
+import java.util.Map;
 
 /**
  * Server lifecycle wiring: keep the price book in step with the loaded datapacks and recipes,
@@ -32,6 +38,11 @@ public final class ServerEvents {
     public static void onAddReloadListeners(AddReloadListenerEvent event) {
         event.addListener(new BasePriceLoader());
         event.addListener(new MerchantLoader());
+    }
+
+    @SubscribeEvent
+    public static void onRegisterCommands(RegisterCommandsEvent event) {
+        PriceCommand.register(event.getDispatcher(), event.getBuildContext());
     }
 
     @SubscribeEvent
@@ -76,13 +87,17 @@ public final class ServerEvents {
         MarketCatalog.setActive(MarketCatalog.empty());
     }
 
-    private static void rebuildCatalog(MinecraftServer server) {
+    public static void rebuildCatalog(MinecraftServer server) {
         if (server == null) {
             return;
         }
         BasePriceLoader.Parsed seeds = BasePriceLoader.current();
+        double multiplier = EconomyConfig.INSTANCE.priceMultiplier.get();
+        Map<Item, Double> prices = new HashMap<>();
+        seeds.prices().forEach((item, price) -> prices.put(item, price * multiplier));
+        prices.putAll(PriceCommand.overrides());
         MarketCatalog.setActive(MarketCatalog.build(
-                seeds.prices(),
+                prices,
                 seeds.untradeable(),
                 MerchantLoader.current(),
                 server.getRecipeManager(),

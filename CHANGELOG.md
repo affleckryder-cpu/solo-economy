@@ -1,3 +1,27 @@
+# Solo Economy 0.3.0 (in progress)
+
+**Minecraft 1.21.1 · NeoForge (built on 21.1.209) · Java 21**
+
+## Added
+
+- **Inventory panel.** Your inventory now sits beside the market. Hover an item to see what it sells for. Click it to find it across every merchant and select it, or shift-click to sell all of it. Items no merchant buys are greyed out.
+- **Discover items to buy them.** The market only sells you what you've found yourself. Carry an item to a stall, or sell it there, and you can buy it from then on. Until then its row is greyed out and its buy price shows **Locked**. Selling is never locked. Turn this off with `requireDiscovery = false`.
+- **Price multiplier.** `priceMultiplier` in `config/soloeconomy-server.toml` scales every default price. Set it to 3 and everything costs three times the emeralds, so emeralds from villagers and mining go a third as far. How fast prices move is unaffected.
+- **Change prices in game.** No datapack needed:
+  - `/soloeconomy price <item>` shows an item's price and where it comes from.
+  - `/soloeconomy price <item> set <emeralds>` gives it a new base price. Crafted items made from it follow automatically.
+  - `/soloeconomy price <item> reset` puts it back.
+  - Setting or resetting a price also resets that item's supply, so it trades at the new price right away.
+  - Changes apply immediately and are saved to `priceOverrides` in `config/soloeconomy-server.toml`, which you can also edit by hand.
+  - Setting prices needs cheats or operator permission. If a new price makes crafting-for-profit possible, the command warns you.
+  - Prices set this way are used exactly as written, ignoring the multiplier.
+
+## Upgrading
+
+Discovery starts empty, so after updating you'll need to bring items to a stall before you can buy them again. Set `requireDiscovery = false` to keep the old behaviour.
+
+---
+
 # Solo Economy 0.2.0
 
 **Minecraft 1.21.1 · NeoForge (built on 21.1.209) · Java 21**
@@ -15,14 +39,13 @@ The market no longer buys and sells everything. It's now **eleven merchants**, e
 - Rebuilt in the style of the console edition menus.
 - **Merchants down the left**, with the **Bank** at the bottom for deposits and withdrawals.
 - Every row shows its **sell price and buy price** side by side.
-- The **Sell** and **Buy** buttons show the exact total for your chosen quantity before you click.
+- The **Sell** and **Buy** buttons show the total for your chosen quantity before you click. Hover one for the count and exact amount.
 - **Search** looks across every merchant. **Only what I carry** filters the list to your inventory.
 - **Arrow keys** move through the list.
 - Removed the sort button. Each merchant lists its goods in a set order.
 
 ## Changed
 
-- Your balance shows whole emeralds. Hover it in the market to see the exact amount.
 - The market screen loads only the merchant you're looking at, so it opens faster.
 
 ## Upgrading
@@ -38,7 +61,11 @@ Balances and market prices carry over. Items you were holding that no merchant t
 ## Fixed
 
 - **Prices under one emerald are now charged properly.** Balances are tracked to two decimal places, so a block worth 0.05 costs 0.05 instead of rounding up to a whole emerald. Selling cheap items no longer pays nothing.
-- Your balance and all trade totals now show decimals where they have them.
+- Trade totals and messages show decimals where they have them.
+
+## Changed
+
+- Your balance shows whole emeralds, matching what Withdraw pays out. Hover it in the market screen to see the exact amount.
 
 Existing balances carry over automatically the first time you log in.
 

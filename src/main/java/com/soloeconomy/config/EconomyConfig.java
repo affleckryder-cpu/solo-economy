@@ -4,6 +4,8 @@ import net.neoforged.neoforge.common.ModConfigSpec;
 
 import org.apache.commons.lang3.tuple.Pair;
 
+import java.util.List;
+
 /**
  * Server-side tuning for the market. Everything that decides whether a trade loop is
  * profitable lives here, so the anti-exploit invariant can be checked in one place.
@@ -24,6 +26,9 @@ public final class EconomyConfig {
     public final ModConfigSpec.BooleanValue deriveUnpricedItems;
     public final ModConfigSpec.IntValue startingBalance;
     public final ModConfigSpec.DoubleValue brokerSpreadMultiplier;
+    public final ModConfigSpec.ConfigValue<List<? extends String>> priceOverrides;
+    public final ModConfigSpec.DoubleValue priceMultiplier;
+    public final ModConfigSpec.BooleanValue requireDiscovery;
 
     private EconomyConfig(ModConfigSpec.Builder builder) {
         builder.comment("Solo Economy - market tuning").push("market");
@@ -94,6 +99,27 @@ public final class EconomyConfig {
                         "reduced spread, not the base one, because a brokered stall is the cheapest",
                         "round trip available in the game.")
                 .defineInRange("brokerSpreadMultiplier", 0.75D, 0.0D, 1.0D);
+
+        priceMultiplier = builder
+                .comment("Scales every default price in base_prices.json. 3 makes everything three times the",
+                        "emeralds, so emeralds from villagers and mining go a third as far. Prices set with",
+                        "/soloeconomy price are used as written. How fast prices move is unaffected.")
+                .defineInRange("priceMultiplier", 1.0D, 0.01D, 100.0D);
+
+        requireDiscovery = builder
+                .comment("Only let players buy items they have found themselves. Carrying an item to a stall",
+                        "or selling it there unlocks buying it, per player, for good. Selling is never locked.")
+                .define("requireDiscovery", true);
+
+        priceOverrides = builder
+                .comment("Base price changes, as \"item_id=emeralds\". These win over base_prices.json.",
+                        "This file applies to every world; copy it into a world's serverconfig folder to",
+                        "give that world its own prices.",
+                        "Easiest to change in game: /soloeconomy price <item> set <emeralds>, or ... reset.",
+                        "Edits made here by hand apply on /reload. Price raw materials where you can: setting a",
+                        "crafted item gives it its own price, detached from its ingredients.")
+                .defineListAllowEmpty("priceOverrides", List.of(), () -> "minecraft:diamond=20",
+                        o -> o instanceof String s && s.indexOf('=') > 0);
 
         builder.pop();
     }

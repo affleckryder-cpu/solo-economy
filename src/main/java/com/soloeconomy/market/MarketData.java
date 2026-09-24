@@ -80,6 +80,13 @@ public class MarketData extends SavedData {
         return healed;
     }
 
+    /** Forget this primitive's trading history, so it sits at its equilibrium price again. */
+    public void resetStock(Item primitive) {
+        if (entries.remove(primitive) != null) {
+            setDirty();
+        }
+    }
+
     private void setStock(Item primitive, double stock, long gameTime) {
         Entry entry = entries.computeIfAbsent(primitive, k -> new Entry());
         entry.stock = Math.max(MIN_STOCK, stock);

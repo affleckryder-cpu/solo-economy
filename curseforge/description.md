@@ -80,6 +80,11 @@ About 225 raw materials have set prices. Everything else is priced from the ingr
 | `minPriceMultiplier` / `maxPriceMultiplier` | 0.2 / 5.0 | Price floor and ceiling |
 | `brokerSpreadMultiplier` | 0.75 | Fee reduction when a Broker works the stall |
 | `startingBalance` | 0 | Emeralds a new player starts with |
+| `priceMultiplier` | 1.0 | Scales every default price. Raise it to make emeralds go less far |
+| `requireDiscovery` | true | Players can only buy items they've carried to or sold at a stall |
+| `priceOverrides` | [] | Per-item prices, easiest set with the command below |
+
+**Change a price in game:** `/soloeconomy price <item> set <emeralds>`, or `reset` to undo, or no argument to see where a price comes from. It needs cheats or operator permission. Crafted items follow their ingredients automatically, and the command warns you if a price makes crafting profitable.
 
 **Custom merchants:** `data/soloeconomy/merchants.json` lists who trades what, by item id or `#tag`. A datapack can replace a merchant, add new ones, or start from scratch. Names and descriptions come from the lang keys `merchant.soloeconomy.<id>` and `.desc`.
 

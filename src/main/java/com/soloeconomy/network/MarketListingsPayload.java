@@ -13,10 +13,10 @@ import net.minecraft.world.item.Item;
 import java.util.List;
 
 /**
- * The merchant list for the sidebar, plus the goods matching the client's query. Both are small -
- * a dozen merchants and a few dozen rows - so they're simply resent on every query.
+ * The merchant list for the sidebar, the goods matching the client's query, and prices for what the
+ * player is carrying (for the inventory panel). All small, so simply resent on every query.
  */
-public record MarketListingsPayload(List<Merchant> merchants, List<Listing> listings,
+public record MarketListingsPayload(List<Merchant> merchants, List<Listing> listings, List<Listing> carried,
                                     float spread, long balance) implements CustomPacketPayload {
 
     public static final Type<MarketListingsPayload> TYPE = new Type<>(
@@ -26,6 +26,7 @@ public record MarketListingsPayload(List<Merchant> merchants, List<Listing> list
             StreamCodec.composite(
                     Merchant.STREAM_CODEC.apply(ByteBufCodecs.list(64)), MarketListingsPayload::merchants,
                     Listing.STREAM_CODEC.apply(ByteBufCodecs.list(2048)), MarketListingsPayload::listings,
+                    Listing.STREAM_CODEC.apply(ByteBufCodecs.list(64)), MarketListingsPayload::carried,
                     ByteBufCodecs.FLOAT, MarketListingsPayload::spread,
                     ByteBufCodecs.VAR_LONG, MarketListingsPayload::balance,
                     MarketListingsPayload::new);

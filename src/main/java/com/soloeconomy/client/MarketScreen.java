@@ -61,6 +61,13 @@ public class MarketScreen extends AbstractContainerScreen<MarketMenu> {
     private static final int SELL_RIGHT = 250;
     private static final int BUY_RIGHT = 296;
 
+    /** The inventory panel to the right: 36 slots, four across, main inventory first then hotbar. */
+    private static final int INV_X = WIDTH + 4;
+    private static final int INV_WIDTH = 90;
+    private static final int INV_COLUMNS = 4;
+    private static final int SLOT = 18;
+    private static final int SLOTS_Y = 27;
+
     private static final int BAR_Y = 205;
     private static final int CHIP_X = 68;
     private static final int CHIP_PITCH = 21;
@@ -74,10 +81,12 @@ public class MarketScreen extends AbstractContainerScreen<MarketMenu> {
     private static final int COLOR_SELL = 0xFF55FF55;
     private static final int COLOR_BUY = 0xFFFFAA00;
     private static final int COLOR_ACCENT = 0xFF3DDC84;
+    private static final int COLOR_LOCKED = 0xFF626262;
 
     /** Quantities to trade; -1 asks the server for "as many as possible". */
     private static final int[] QUANTITIES = {1, 8, 64, ServerMarketHandler.COUNT_MAX};
     private static final String BANK = "bank";
+    private static final Component LOCKED = Component.translatable("gui.soloeconomy.locked");
 
     /** A listing with its icon and name resolved once, so drawing a row allocates nothing. */
     private record Row(Listing listing, ItemStack stack, String name) {
@@ -102,13 +111,16 @@ public class MarketScreen extends AbstractContainerScreen<MarketMenu> {
 
     @Nullable
     private Row selected;
+    /** An item clicked in the inventory panel, selected once its search results arrive. */
+    @Nullable
+    private Item pendingSelect;
     @Nullable
     private Item quoteRequestedFor;
     private int quoteRequestedQuantity = Integer.MIN_VALUE;
 
     public MarketScreen(MarketMenu menu, Inventory inventory, Component title) {
         super(menu, inventory, title);
-        this.imageWidth = WIDTH;
+        this.imageWidth = INV_X + INV_WIDTH;
         this.imageHeight = HEIGHT;
     }
 
@@ -170,7 +182,7 @@ public class MarketScreen extends AbstractContainerScreen<MarketMenu> {
             merchant = ClientMarketState.merchants().get(0).id();
         }
 
-        Item keep = selected == null ? null : selected.listing().item();
+        Item keep = pendingSelect != null ? pendingSelect : selected == null ? null : selected.listing().item();
         List<Row> newRows = new ArrayList<>();
         selected = null;
         for (Listing listing : ClientMarketState.listings()) {
@@ -183,6 +195,11 @@ public class MarketScreen extends AbstractContainerScreen<MarketMenu> {
         }
         rows = newRows;
         scrollRow = Mth.clamp(scrollRow, 0, maxScroll());
+        if (selected != null && pendingSelect != null) {
+            int index = rows.indexOf(selected);
+            scrollRow = Mth.clamp(scrollRow, index - ROWS + 1, index);
+        }
+        pendingSelect = null;
     }
 
     private void selectMerchant(String id) {
@@ -267,12 +284,44 @@ public class MarketScreen extends AbstractContainerScreen<MarketMenu> {
         return !atBank() && inside(mx, my, leftPos + LIST_X + 4, topPos + BOX_Y + 36, 12 + font.width(Component.translatable("gui.soloeconomy.carry_only")), 10);
     }
 
+    /** Inventory slot under the pointer, as an index into Inventory.items, or -1. */
+    private int slotAt(double mx, double my) {
+        int x0 = leftPos + INV_X + 9;
+        int y0 = topPos + SLOTS_Y;
+        if (!inside(mx, my, x0, y0, INV_COLUMNS * SLOT, 9 * SLOT)) {
+            return -1;
+        }
+        int shown = (int) (my - y0) / SLOT * INV_COLUMNS + (int) (mx - x0) / SLOT;
+        return shown < 27 ? shown + 9 : shown - 27; // main inventory first, hotbar last, as in vanilla
+    }
+
+    /** Selling from the inventory panel needs a clean, unenchanted stack that some merchant buys. */
+    @Nullable
+    private static Listing sellable(ItemStack stack) {
+        return ServerMarketHandler.isTradeableStack(stack) ? ClientMarketState.carried(stack.getItem()) : null;
+    }
+
     private boolean overScrollbar(double mx, double my) {
         return inside(mx, my, leftPos + LIST_X + LIST_WIDTH - 8, topPos + ROWS_Y, 6, ROWS * ROW_HEIGHT);
     }
 
     @Override
     public boolean mouseClicked(double mx, double my, int button) {
+        int slot = slotAt(mx, my);
+        if (slot >= 0) {
+            ItemStack stack = minecraft.player.getInventory().items.get(slot);
+            if (sellable(stack) != null) {
+                if (hasShiftDown()) {
+                    PacketDistributor.sendToServer(new TradePayload(stack.getItem(), ServerMarketHandler.COUNT_MAX, false));
+                } else {
+                    // Search for it: that lists every merchant who deals in it, and selects it there.
+                    pendingSelect = stack.getItem();
+                    searchBox.setValue(stack.getHoverName().getString());
+                    setFocused(null);
+                }
+            }
+            return true;
+        }
         int entry = entryAt(mx, my);
         if (entry >= 0 && entry < entries.size()) {
             selectMerchant(entries.get(entry).id());
@@ -382,6 +431,7 @@ public class MarketScreen extends AbstractContainerScreen<MarketMenu> {
             renderListing(g, mouseX, mouseY);
         }
         renderBar(g, mouseX, mouseY);
+        renderInventory(g, mouseX, mouseY);
     }
 
     @Override
@@ -458,13 +508,17 @@ public class MarketScreen extends AbstractContainerScreen<MarketMenu> {
             } else if ((scrollRow + i) % 2 == 1) {
                 g.fill(rx, ry, rx + rw, ry + ROW_HEIGHT, 0x0AFFFFFF);
             }
+            boolean locked = row.listing().locked();
             g.renderItem(row.stack(), rx + 3, ry + 1);
+            if (locked) {
+                dimItem(g, rx + 3, ry + 1);
+            }
             String sell = formatPrice(row.listing().sellPrice());
             String name = font.plainSubstrByWidth(row.name(), SELL_RIGHT - font.width(sell) - 8 - (rx + 22 - leftPos));
-            g.drawString(font, name, rx + 22, ry + 5, COLOR_TEXT, true);
-            g.drawString(font, sell, leftPos + SELL_RIGHT - font.width(sell), ry + 5, COLOR_SELL, true);
-            String buy = formatPrice(row.listing().buyPrice());
-            g.drawString(font, buy, leftPos + BUY_RIGHT - font.width(buy), ry + 5, COLOR_BUY, true);
+            g.drawString(font, name, rx + 22, ry + 5, locked ? COLOR_LOCKED : COLOR_TEXT, !locked);
+            g.drawString(font, sell, leftPos + SELL_RIGHT - font.width(sell), ry + 5, locked ? COLOR_LOCKED : COLOR_SELL, !locked);
+            String buy = row.listing().locked() ? LOCKED.getString() : formatPrice(row.listing().buyPrice());
+            g.drawString(font, buy, leftPos + BUY_RIGHT - font.width(buy), ry + 5, locked ? COLOR_LOCKED : COLOR_BUY, !locked);
         }
 
         int max = maxScroll();
@@ -546,8 +600,8 @@ public class MarketScreen extends AbstractContainerScreen<MarketMenu> {
                 ? Component.translatable("gui.soloeconomy.action_none")
                 : Component.translatable("gui.soloeconomy.action_sell", shortTotal(quote.sellTotal()))
                         .withStyle(ChatFormatting.GREEN), quote.sellCount() > 0);
-        setButton(rightButton, quote.buyCount() <= 0
-                ? Component.translatable("gui.soloeconomy.action_broke")
+        setButton(rightButton, selected.listing().locked() ? LOCKED
+                : quote.buyCount() <= 0 ? Component.translatable("gui.soloeconomy.action_broke")
                 : Component.translatable("gui.soloeconomy.action_buy", shortTotal(quote.buyTotal()))
                         .withStyle(ChatFormatting.GOLD), quote.buyCount() > 0);
     }
@@ -557,15 +611,72 @@ public class MarketScreen extends AbstractContainerScreen<MarketMenu> {
         button.active = active;
     }
 
+    private void renderInventory(GuiGraphics g, int mouseX, int mouseY) {
+        int x = leftPos + INV_X;
+        drawPanel(g, x, topPos, INV_WIDTH, HEIGHT);
+        g.drawString(font, Component.translatable("gui.soloeconomy.inventory"), x + 8, topPos + 9, COLOR_TITLE, false);
+        drawBox(g, x + 6, topPos + BOX_Y, INV_COLUMNS * SLOT + 6, 9 * SLOT + 6);
+
+        int hovered = slotAt(mouseX, mouseY);
+        Item chosen = selected == null ? null : selected.listing().item();
+        List<ItemStack> items = minecraft.player.getInventory().items;
+        for (int shown = 0; shown < 36; shown++) {
+            int slot = shown < 27 ? shown + 9 : shown - 27;
+            int sx = x + 9 + shown % INV_COLUMNS * SLOT;
+            int sy = topPos + SLOTS_Y + shown / INV_COLUMNS * SLOT;
+            ItemStack stack = items.get(slot);
+            g.fill(sx + 1, sy + 1, sx + SLOT - 1, sy + SLOT - 1, slot == hovered ? 0xFF3A3A3A : 0xFF1F1F1F);
+            if (stack.isEmpty()) {
+                continue;
+            }
+            g.renderItem(stack, sx + 1, sy + 1);
+            g.renderItemDecorations(font, stack, sx + 1, sy + 1);
+            if (sellable(stack) == null) {
+                dimItem(g, sx + 1, sy + 1);
+            } else if (stack.is(chosen)) {
+                drawFrame(g, sx, sy, SLOT, SLOT, 0xFFFFFFFF);
+            }
+        }
+
+        List<FormattedCharSequence> hint = font.split(Component.translatable("gui.soloeconomy.inventory_hint"), INV_WIDTH - 14);
+        for (int i = 0; i < Math.min(3, hint.size()); i++) {
+            g.drawString(font, hint.get(i), x + 7, topPos + 198 + i * 9, COLOR_TITLE, false);
+        }
+    }
+
+    /** Greys out an item icon; drawn above it, since items render in front of plain fills. */
+    private static void dimItem(GuiGraphics g, int x, int y) {
+        g.pose().pushPose();
+        g.pose().translate(0.0F, 0.0F, 300.0F);
+        g.fill(x, y, x + 16, y + 16, 0xB02B2B2B);
+        g.pose().popPose();
+    }
+
     private void renderHoverTooltip(GuiGraphics g, int mouseX, int mouseY) {
+        int slot = slotAt(mouseX, mouseY);
+        if (slot >= 0) {
+            ItemStack stack = minecraft.player.getInventory().items.get(slot);
+            if (!stack.isEmpty()) {
+                Listing listing = sellable(stack);
+                g.renderComponentTooltip(font, List.of(stack.getHoverName(), listing == null
+                        ? Component.translatable("gui.soloeconomy.inventory_unwanted").withStyle(ChatFormatting.GRAY)
+                        : Component.translatable("gui.soloeconomy.inventory_price", formatPrice(listing.sellPrice()))
+                                .withStyle(ChatFormatting.GREEN)), mouseX, mouseY);
+            }
+            return;
+        }
         // Only over the icon: a tooltip from anywhere else on the row would cover the prices.
         Row row = atBank() || mouseX >= leftPos + LIST_X + 23 ? null : rowAt(mouseX, mouseY);
         if (row != null) {
-            g.renderComponentTooltip(font, List.of(
+            List<Component> lines = new ArrayList<>(List.of(
                     row.stack().getHoverName(),
                     supplyLine(row.listing().stockRatio()),
                     Component.translatable("gui.soloeconomy.carrying", countHeld(row.listing().item()))
-                            .withStyle(ChatFormatting.GRAY)), mouseX, mouseY);
+                            .withStyle(ChatFormatting.GRAY)));
+            if (row.listing().locked()) {
+                lines.add(Component.translatable("gui.soloeconomy.locked_tip").withStyle(ChatFormatting.GRAY));
+            }
+            g.renderComponentTooltip(font, lines, mouseX, mouseY);
             return;
         }
         if (inside(mouseX, mouseY, leftPos + 8, topPos + BAR_Y, 18 + font.width(wholeBalance()), 18)) {
@@ -577,6 +688,10 @@ public class MarketScreen extends AbstractContainerScreen<MarketMenu> {
         if (quote != null && leftButton.isHovered() && quote.sellCount() > 0) {
             g.renderTooltip(font, Component.translatable("gui.soloeconomy.action_sell_tip", quote.sellCount(),
                     EconomyAccount.format(quote.sellTotal())), mouseX, mouseY);
+            return;
+        }
+        if (selected != null && !atBank() && selected.listing().locked() && rightButton.isHovered()) {
+            g.renderTooltip(font, Component.translatable("gui.soloeconomy.locked_tip"), mouseX, mouseY);
             return;
         }
         if (quote != null && rightButton.isHovered() && quote.buyCount() > 0) {

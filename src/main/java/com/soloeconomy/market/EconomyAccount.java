@@ -66,7 +66,8 @@ public final class EconomyAccount {
     }
 
     public static void sync(Player player) {
-        if (player instanceof ServerPlayer serverPlayer) {
+        // Connections without the mod (or GameTest mock players) can't receive it.
+        if (player instanceof ServerPlayer serverPlayer && serverPlayer.connection.hasChannel(BalanceSyncPayload.TYPE)) {
             PacketDistributor.sendToPlayer(serverPlayer, new BalanceSyncPayload(balance(serverPlayer)));
         }
     }
