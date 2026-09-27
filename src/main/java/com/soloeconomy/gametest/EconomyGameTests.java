@@ -337,4 +337,26 @@ public final class EconomyGameTests {
         }
         helper.succeed();
     }
+
+    /** openMarket must list every priced item, and the audit must still find no loop across them all. */
+    @GameTest(template = TEMPLATE)
+    public static void openMarketTradesEverythingSafely(GameTestHelper helper) {
+        MinecraftServer server = helper.getLevel().getServer();
+        boolean saved = EconomyConfig.INSTANCE.openMarket.get();
+        try {
+            EconomyConfig.INSTANCE.openMarket.set(true);
+            ServerEvents.rebuildCatalog(server);
+            MarketCatalog catalog = MarketCatalog.active();
+            if (catalog.size() < 500 || !catalog.isTradeable(Items.DIRT)) {
+                helper.fail("Open market only lists " + catalog.size() + " items");
+            }
+            if (!catalog.loopRisks().isEmpty()) {
+                helper.fail("Open market has a crafting loop: " + catalog.loopRisks().get(0).describe());
+            }
+        } finally {
+            EconomyConfig.INSTANCE.openMarket.set(saved);
+            ServerEvents.rebuildCatalog(server);
+        }
+        helper.succeed();
+    }
 }

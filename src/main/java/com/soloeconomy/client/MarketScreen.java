@@ -51,7 +51,7 @@ public class MarketScreen extends AbstractContainerScreen<MarketMenu> {
     private static final int SIDE_WIDTH = 88;
     private static final int BOX_Y = 24;
     private static final int BOX_HEIGHT = 176;
-    private static final int ENTRY_HEIGHT = 14;
+    private static final int ENTRY_HEIGHT = 13;
 
     private static final int LIST_X = 98;
     private static final int LIST_WIDTH = 212;

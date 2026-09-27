@@ -1,4 +1,14 @@
-# Solo Economy 0.3.0 (in progress)
+# Solo Economy 0.3.1
+
+**Minecraft 1.21.1 · NeoForge (built on 21.1.209) · Java 21**
+
+## Added
+
+- **Open market option.** Set `openMarket = true` in `config/soloeconomy-server.toml` to add a **General Store** that buys and sells every item with a price, 944 in vanilla. Modded items are included when they're crafted, smelted or stonecut from priced materials, or given a price with `/soloeconomy price`. It's off by default, and discovery still applies unless you turn that off too.
+
+---
+
+# Solo Economy 0.3.0
 
 **Minecraft 1.21.1 · NeoForge (built on 21.1.209) · Java 21**
 

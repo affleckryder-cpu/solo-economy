@@ -29,6 +29,7 @@ public final class EconomyConfig {
     public final ModConfigSpec.ConfigValue<List<? extends String>> priceOverrides;
     public final ModConfigSpec.DoubleValue priceMultiplier;
     public final ModConfigSpec.BooleanValue requireDiscovery;
+    public final ModConfigSpec.BooleanValue openMarket;
 
     private EconomyConfig(ModConfigSpec.Builder builder) {
         builder.comment("Solo Economy - market tuning").push("market");
@@ -110,6 +111,12 @@ public final class EconomyConfig {
                 .comment("Only let players buy items they have found themselves. Carrying an item to a stall",
                         "or selling it there unlocks buying it, per player, for good. Selling is never locked.")
                 .define("requireDiscovery", true);
+
+        openMarket = builder
+                .comment("Add a General Store that buys and sells every item with a price, not just what the",
+                        "merchants in merchants.json deal in. Modded items are included when they are crafted,",
+                        "smelted or stonecut from priced materials, or given a price with /soloeconomy price.")
+                .define("openMarket", false);
 
         priceOverrides = builder
                 .comment("Base price changes, as \"item_id=emeralds\". These win over base_prices.json.",
