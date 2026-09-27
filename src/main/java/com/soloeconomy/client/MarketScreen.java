@@ -92,7 +92,7 @@ public class MarketScreen extends AbstractContainerScreen<MarketMenu> {
     private record Row(Listing listing, ItemStack stack, String name) {
     }
 
-    private record Entry(String id, ItemStack icon, Component name) {
+    private record Entry(String id, ItemStack icon, String name) {
     }
 
     private List<Row> rows = List.of();
@@ -173,9 +173,9 @@ public class MarketScreen extends AbstractContainerScreen<MarketMenu> {
     private void rebuildRows() {
         List<Entry> newEntries = new ArrayList<>();
         for (MarketListingsPayload.Merchant m : ClientMarketState.merchants()) {
-            newEntries.add(new Entry(m.id(), new ItemStack(m.icon()), merchantName(m.id())));
+            newEntries.add(new Entry(m.id(), new ItemStack(m.icon()), sidebarName(merchantName(m.id()))));
         }
-        newEntries.add(new Entry(BANK, new ItemStack(Items.EMERALD), Component.translatable("gui.soloeconomy.bank")));
+        newEntries.add(new Entry(BANK, new ItemStack(Items.EMERALD), sidebarName(Component.translatable("gui.soloeconomy.bank"))));
         entries = newEntries;
         // Until the first listing arrives there are no merchants; landing on the bank then would never query.
         if (merchant.isEmpty() && !ClientMarketState.merchants().isEmpty()) {
@@ -734,6 +734,11 @@ public class MarketScreen extends AbstractContainerScreen<MarketMenu> {
         g.fill(x, y + h - 1, x + w, y + h, color);
         g.fill(x, y, x + 1, y + h, color);
         g.fill(x + w - 1, y, x + w, y + h, color);
+    }
+
+    /** Clipped to the sidebar, so a long name from a datapack can't run past the box. */
+    private String sidebarName(Component name) {
+        return font.plainSubstrByWidth(name.getString(), SIDE_WIDTH - 26);
     }
 
     private static Component merchantName(String id) {

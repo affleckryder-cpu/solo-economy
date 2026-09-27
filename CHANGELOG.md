@@ -4,7 +4,7 @@
 
 ## Added
 
-- **Open market option.** Set `openMarket = true` in `config/soloeconomy-server.toml` to add a **General Store** that buys and sells every item with a price, 944 in vanilla. Modded items are included when they're crafted, smelted or stonecut from priced materials, or given a price with `/soloeconomy price`. It's off by default, and discovery still applies unless you turn that off too.
+- **Open market option.** Set `openMarket = true` in `config/soloeconomy-server.toml` to add a **Store** merchant that buys and sells every item with a price, 944 in vanilla. Modded items are included when they're crafted, smelted or stonecut from priced materials, or given a price with `/soloeconomy price`. It's off by default, and discovery still applies unless you turn that off too.
 
 ---
 

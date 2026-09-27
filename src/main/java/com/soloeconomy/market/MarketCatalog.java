@@ -254,7 +254,7 @@ public final class MarketCatalog {
             merchants.add(new Merchant(definition.id(), definition.icon(), List.copyOf(items)));
         }
         if (EconomyConfig.INSTANCE.openMarket.get()) {
-            // The General Store deals in everything with a price, modded items included.
+            // The Store deals in everything with a price, modded items included.
             List<Item> everything = new ArrayList<>(bundles.keySet());
             everything.sort(Comparator.comparing(BuiltInRegistries.ITEM::getKey));
             merchants.add(new Merchant("general", Items.CHEST, List.copyOf(everything)));

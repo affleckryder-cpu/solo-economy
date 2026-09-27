@@ -318,7 +318,20 @@ public final class EconomyGameTests {
     /** Nothing is buyable until found, carrying it unlocks it, and only tradeable things count. */
     @GameTest(template = TEMPLATE)
     public static void carryingAnItemUnlocksBuyingIt(GameTestHelper helper) {
-        ServerEvents.rebuildCatalog(helper.getLevel().getServer());
+        MinecraftServer server = helper.getLevel().getServer();
+        boolean savedOpen = EconomyConfig.INSTANCE.openMarket.get();
+        EconomyConfig.INSTANCE.openMarket.set(false); // with it on, dirt would be tradeable
+        ServerEvents.rebuildCatalog(server);
+        try {
+            checkDiscovery(helper);
+        } finally {
+            EconomyConfig.INSTANCE.openMarket.set(savedOpen);
+            ServerEvents.rebuildCatalog(server);
+        }
+        helper.succeed();
+    }
+
+    private static void checkDiscovery(GameTestHelper helper) {
         ServerPlayer player = helper.makeMockServerPlayerInLevel();
         if (Discovery.canBuy(player, Items.DIAMOND)) {
             helper.fail("A new player can already buy diamonds");
@@ -335,7 +348,6 @@ public final class EconomyGameTests {
         if (Discovery.canBuy(player, Items.DIRT)) {
             helper.fail("Dirt, which no merchant trades, was recorded as discovered");
         }
-        helper.succeed();
     }
 
     /** openMarket must list every priced item, and the audit must still find no loop across them all. */

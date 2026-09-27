@@ -84,6 +84,6 @@
   "gui.soloeconomy.inventory_hint": "Click to pick. Shift-click sells all.",
   "gui.soloeconomy.inventory_price": "Sells for %s each",
   "gui.soloeconomy.inventory_unwanted": "No merchant buys this",
-  "merchant.soloeconomy.general": "General Store",
+  "merchant.soloeconomy.general": "Store",
   "merchant.soloeconomy.general.desc": "Deals in anything with a price. Search to find what you need."
 }

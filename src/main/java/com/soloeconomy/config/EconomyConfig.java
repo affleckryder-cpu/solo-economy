@@ -113,7 +113,7 @@ public final class EconomyConfig {
                 .define("requireDiscovery", true);
 
         openMarket = builder
-                .comment("Add a General Store that buys and sells every item with a price, not just what the",
+                .comment("Add a Store merchant that buys and sells every item with a price, not just what the",
                         "merchants in merchants.json deal in. Modded items are included when they are crafted,",
                         "smelted or stonecut from priced materials, or given a price with /soloeconomy price.")
                 .define("openMarket", false);
