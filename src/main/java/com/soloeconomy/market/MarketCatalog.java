@@ -194,11 +194,39 @@ public final class MarketCatalog {
             }
         }
 
+        List<CraftPath> nodes = collectRecipes(recipeManager, registries, blocked);
+        MarketCatalog catalog = assemble(primitives, blocked, merchantDefinitions, nodes);
+
+        // A modded machine can make a hand-priced item for less than its price - Create haunts soul
+        // sand into quartz - which is a real money machine in that world. Price those items from
+        // their recipes instead, until the audit comes back clean.
+        for (int round = 0; round < 8 && EconomyConfig.INSTANCE.modRecipes.get(); round++) {
+            List<Item> undercut = catalog.loopRisks.stream().map(MarketAudit.LoopRisk::result)
+                    .filter(primitives::containsKey).distinct().toList();
+            if (undercut.isEmpty()) {
+                break;
+            }
+            for (Item item : undercut) {
+                primitives.remove(item);
+                SoloEconomy.LOGGER.info("{} is now priced from a modded recipe that makes it for less than its set price",
+                        BuiltInRegistries.ITEM.getKey(item));
+            }
+            catalog = assemble(primitives, blocked, merchantDefinitions, nodes);
+        }
+
+        SoloEconomy.LOGGER.info("Market catalog built: {} priced items, {} traded by {} merchants",
+                catalog.bundles.size(), catalog.size(), catalog.merchants().size());
+        reportLoops(catalog.loopRisks);
+        return catalog;
+    }
+
+    private static MarketCatalog assemble(Map<Item, Double> primitives, Set<Item> blocked,
+                                          List<MerchantLoader.Definition> merchantDefinitions,
+                                          List<CraftPath> nodes) {
         // Static prices exist only to decide which option in a tag-based ingredient slot is the
         // cheapest. They never reach a player.
         Map<Item, Double> estimates = new HashMap<>(primitives);
         Map<Item, CraftPath> paths = new HashMap<>();
-        List<CraftPath> nodes = collectRecipes(recipeManager, registries, blocked);
         relax(estimates, paths, nodes, primitives.keySet());
 
         Map<Item, Bundle> bundles = new HashMap<>();
@@ -207,18 +235,12 @@ public final class MarketCatalog {
             expand(item, bundles, failed, new HashSet<>(), primitives, paths, estimates,
                     blocked, 0, new boolean[1]);
         }
+        bundles.keySet().removeAll(blocked);
 
-        for (Item item : blocked) {
-            bundles.remove(item);
-            primitives.remove(item);
-        }
-
-        MarketCatalog catalog = new MarketCatalog(primitives, bundles, resolveMerchants(merchantDefinitions, bundles));
-        SoloEconomy.LOGGER.info("Market catalog built: {} priced items, {} traded by {} merchants",
-                bundles.size(), catalog.size(), catalog.merchants().size());
+        MarketCatalog catalog = new MarketCatalog(new HashMap<>(primitives), bundles,
+                resolveMerchants(merchantDefinitions, bundles));
         catalog.recipes = List.copyOf(nodes);
         catalog.loopRisks = MarketAudit.findLoops(catalog, nodes, EconomyConfig.INSTANCE.minimumSpread());
-        reportLoops(catalog.loopRisks);
         return catalog;
     }
 
@@ -461,7 +483,7 @@ public final class MarketCatalog {
             return null;
         }
 
-        double divisor = Math.max(1, path.resultCount());
+        double divisor = path.resultCount(); // always > 0: zero-output recipes are never collected
         // Quantities can be negative. Cake uses three milk buckets and hands the buckets back, but
         // a milk bucket is a hand-priced primitive with no iron inside it, so the returned buckets
         // come out as minus nine raw iron. Dropping that - as this code once did - prices cake as
@@ -494,11 +516,11 @@ public final class MarketCatalog {
 
         for (RecipeHolder<?> holder : recipeManager.getRecipes()) {
             Recipe<?> recipe = holder.value();
-            if (!(recipe instanceof CraftingRecipe)
-                    && !(recipe instanceof AbstractCookingRecipe)
-                    && !(recipe instanceof SingleItemRecipe)) {
+            if (!reads(recipe)) {
                 continue;
             }
+            boolean modded = !(recipe instanceof CraftingRecipe || recipe instanceof AbstractCookingRecipe
+                    || recipe instanceof SingleItemRecipe);
 
             ItemStack result;
             try {
@@ -542,10 +564,49 @@ public final class MarketCatalog {
                 continue;
             }
 
-            nodes.add(new CraftPath(resultItem, result.getCount(), List.copyOf(choices)));
+            double count = modded ? expectedCount(recipe, resultItem, result.getCount()) : result.getCount();
+            if (count > 0.0D) {
+                nodes.add(new CraftPath(resultItem, count, List.copyOf(choices), modded));
+            }
         }
 
         return nodes;
+    }
+
+    /**
+     * How many of {@code item} a modded recipe makes on average. Create-style recipes list outputs
+     * with a chance (crushing gravel gives flint 25% of the time); counting those as certain would
+     * price flint at a quarter of what it costs. Read by method name so Create isn't a dependency.
+     */
+    private static double expectedCount(Recipe<?> recipe, Item item, int fallback) {
+        try {
+            double total = 0.0D;
+            for (Object output : (List<?>) recipe.getClass().getMethod("getRollableResults").invoke(recipe)) {
+                ItemStack stack = (ItemStack) output.getClass().getMethod("getStack").invoke(output);
+                if (stack.is(item)) {
+                    total += stack.getCount() * ((Number) output.getClass().getMethod("getChance").invoke(output)).doubleValue();
+                }
+            }
+            return total;
+        } catch (ReflectiveOperationException | ClassCastException e) {
+            return fallback; // not a chance-based recipe
+        }
+    }
+
+    /**
+     * Crafting, smelting and stonecutting always. Any other recipe - Create machines, modded
+     * workbenches - only with modRecipes on, since all we can see is its ingredient list and main
+     * result: fluids, per-slot counts, chance byproducts and tools that aren't used up are
+     * invisible, and the last two can overprice an item beyond what the audit can check.
+     */
+    static boolean reads(Recipe<?> recipe) {
+        if (recipe instanceof CraftingRecipe || recipe instanceof AbstractCookingRecipe
+                || recipe instanceof SingleItemRecipe) {
+            return true;
+        }
+        // Not filtered on isSpecial(): Create marks every machine recipe special to keep it out of
+        // the recipe book. Truly dynamic recipes are skipped anyway - they list no ingredients.
+        return EconomyConfig.INSTANCE.modRecipes.get();
     }
 
     /**
@@ -563,7 +624,7 @@ public final class MarketCatalog {
     public record Merchant(String id, Item icon, List<Item> items) {
     }
 
-    /** One recipe, reduced to what pricing cares about. */
-    public record CraftPath(Item result, int resultCount, List<List<Item>> ingredients) {
+    /** One recipe, reduced to what pricing cares about. {@code modded}: read only because of modRecipes. */
+    public record CraftPath(Item result, double resultCount, List<List<Item>> ingredients, boolean modded) {
     }
 }

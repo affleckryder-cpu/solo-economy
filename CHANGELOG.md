@@ -1,3 +1,35 @@
+# Solo Economy 0.3.3
+
+**Minecraft 1.21.1 · NeoForge (built on 21.1.209) · Java 21**
+
+## Added
+
+- **Price items from other mods' recipes.** Set `modRecipes = true` in `config/soloeconomy-server.toml` and the market prices items from any mod's recipes, such as Create's machines and modded workbenches, by adding up their ingredients. Tested with Create 6: 430 of its 699 items get a price.
+  - Outputs with a chance, like Create's crushing byproducts, are priced by how many you get on average.
+  - If a modded machine makes a vanilla item for less than its normal price (Create can turn soul sand into quartz), that item is priced from the machine recipe instead, so it can't be used to make money from nothing.
+  - Best effort: fluids aren't counted, and a recipe that asks for several of one item in a single slot may count it once. If a price looks off, fix it with `/soloeconomy price <item> set <emeralds>`.
+  - Off by default. Modded items are only bought and sold with `openMarket` on, or when a datapack adds them to a merchant.
+
+---
+
+# Solo Economy 0.3.2
+
+**Minecraft 1.21.1 · NeoForge (built on 21.1.209) · Java 21**
+
+## Balance
+
+Bulk selling now hits diminishing returns. Before, a farm dumping 1,000 logs a day earned over 8,000 emeralds a month, enough for an elytra every day. Now it earns about a quarter of that, and after the first week income settles at a few hundred emeralds a week. Selling a stack now and then pays almost the same as before.
+
+- Markets recover more slowly: about halfway back to normal in a week, down from a day.
+- Prices react more strongly to big sales, and can fall further: to 5% of normal, down from 20%.
+- Selling a stack of diamonds now moves their price about 30%, up from 15%.
+
+## Upgrading
+
+Your config updates itself on first start. Settings still at the old defaults (`recoveryPerDay`, `elasticity`, `minPriceMultiplier`, `marketDepth`) move to the new ones. Anything you changed yourself is left alone.
+
+---
+
 # Solo Economy 0.3.1
 
 **Minecraft 1.21.1 · NeoForge (built on 21.1.209) · Java 21**

@@ -47,6 +47,7 @@ public final class ServerEvents {
 
     @SubscribeEvent
     public static void onServerStarted(ServerStartedEvent event) {
+        EconomyConfig.INSTANCE.migrate();
         rebuildCatalog(event.getServer());
     }
 

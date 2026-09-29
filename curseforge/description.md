@@ -53,8 +53,8 @@ Not everything is for sale. Every tradeable item has someone with a reason to wa
 
 ### 📈 Prices that move
 - **259 tradeable items** in vanilla
-- **Selling lowers the price, buying raises it.** A stack of diamonds moves the diamond price about 15%. Cheap goods like cobblestone have deep markets and barely move, but a double chest of it still will.
-- **Markets recover** halfway back to normal every in-game day, so a market you flooded on Monday is worth revisiting by Wednesday.
+- **Selling lowers the price, buying raises it.** A stack of diamonds moves the diamond price about 30%. Cheap goods like cobblestone have deep markets and barely move, but a double chest of it still will.
+- **Markets recover slowly**, about halfway back to normal in a week. Selling a stack now and then pays well; dumping a farm's output every day drives that price down and keeps it there.
 - **Bulk trades are priced unit by unit**, so selling 64 at once is never worse than selling them one at a time. There's no reason to click 64 times.
 
 ### 🧱 Crafted items are priced from their ingredients
@@ -74,15 +74,16 @@ About 225 raw materials have set prices. Everything else is priced from the ingr
 | --- | --- | --- |
 | `spread` | 0.10 | The market's cut on every trade |
 | `craftMarkup` | 1.12 | Fee per crafting step when buying pre-made goods |
-| `elasticity` | 0.6 | How strongly prices react to supply |
-| `marketDepth` | 1024 | How much trading it takes to move a price |
-| `recoveryPerDay` | 0.5 | How fast markets return to normal |
-| `minPriceMultiplier` / `maxPriceMultiplier` | 0.2 / 5.0 | Price floor and ceiling |
+| `elasticity` | 1.0 | How strongly prices react to supply |
+| `marketDepth` | 768 | How much trading it takes to move a price |
+| `recoveryPerDay` | 0.1 | How fast markets return to normal |
+| `minPriceMultiplier` / `maxPriceMultiplier` | 0.05 / 5.0 | Price floor and ceiling |
 | `brokerSpreadMultiplier` | 0.75 | Fee reduction when a Broker works the stall |
 | `startingBalance` | 0 | Emeralds a new player starts with |
 | `priceMultiplier` | 1.0 | Scales every default price. Raise it to make emeralds go less far |
 | `requireDiscovery` | true | Players can only buy items they've carried to or sold at a stall |
 | `openMarket` | false | Adds a Store merchant that trades every item with a price, modded ones included |
+| `modRecipes` | false | Price items from other mods' recipes too (Create machines, modded workbenches) |
 | `priceOverrides` | [] | Per-item prices, easiest set with the command below |
 
 **Change a price in game:** `/soloeconomy price <item> set <emeralds>`, or `reset` to undo, or no argument to see where a price comes from. It needs cheats or operator permission. Crafted items follow their ingredients automatically, and the command warns you if a price makes crafting profitable.
@@ -110,7 +111,7 @@ This is an early release.
 
 - **Placeholder art.** The stall and Broker textures are temporary.
 - **Not yet tradeable:** netherite tools and armour (smithing recipes aren't supported yet), potions, spawn eggs, music discs, pottery sherds and smithing templates.
-- **Modded items** are untradeable unless a datapack lists them under a merchant and gives their raw materials prices.
+- **Modded items** are traded with `openMarket` on or when a datapack lists them under a merchant. Items from modded machines and workbenches need `modRecipes` on, and some may need a price set by hand.
 - **The balance display** sits in the top-right corner and may overlap a minimap.
 - **Built for single-player.** On a server, all players share one market.
 - **English only.**

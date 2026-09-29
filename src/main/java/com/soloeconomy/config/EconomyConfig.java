@@ -26,10 +26,12 @@ public final class EconomyConfig {
     public final ModConfigSpec.BooleanValue deriveUnpricedItems;
     public final ModConfigSpec.IntValue startingBalance;
     public final ModConfigSpec.DoubleValue brokerSpreadMultiplier;
+    public final ModConfigSpec.IntValue configVersion;
     public final ModConfigSpec.ConfigValue<List<? extends String>> priceOverrides;
     public final ModConfigSpec.DoubleValue priceMultiplier;
     public final ModConfigSpec.BooleanValue requireDiscovery;
     public final ModConfigSpec.BooleanValue openMarket;
+    public final ModConfigSpec.BooleanValue modRecipes;
 
     private EconomyConfig(ModConfigSpec.Builder builder) {
         builder.comment("Solo Economy - market tuning").push("market");
@@ -52,12 +54,12 @@ public final class EconomyConfig {
         elasticity = builder
                 .comment("How hard price reacts to stock. price = base * (baseStock/stock)^elasticity.",
                         "0 = fixed prices, 1 = a doubled stock halves the price.")
-                .defineInRange("elasticity", 0.6D, 0.0D, 3.0D);
+                .defineInRange("elasticity", 1.0D, 0.0D, 3.0D);
 
         minPriceMultiplier = builder
                 .comment("Price floor, as a multiple of the item's base price. Stops mass-dumping from",
                         "driving a price to zero and permanently killing that market.")
-                .defineInRange("minPriceMultiplier", 0.20D, 0.001D, 1.0D);
+                .defineInRange("minPriceMultiplier", 0.05D, 0.001D, 1.0D);
 
         maxPriceMultiplier = builder
                 .comment("Price ceiling, as a multiple of the item's base price.")
@@ -67,8 +69,8 @@ public final class EconomyConfig {
                 .comment("Equilibrium stock, in items, for something worth exactly one emerald.",
                         "This is the single biggest lever on how responsive the economy feels.",
                         "Raise it to make prices sluggish, lower it to make them twitchy.",
-                        "At 1024, selling a stack of diamonds moves the diamond price about 15%.")
-                .defineInRange("marketDepth", 1024, 1, 1_000_000);
+                        "At 768, selling a stack of diamonds moves the diamond price about 30%.")
+                .defineInRange("marketDepth", 768, 1, 1_000_000);
 
         depthPriceExponent = builder
                 .comment("How much deeper the market is for cheap goods:",
@@ -81,8 +83,8 @@ public final class EconomyConfig {
 
         recoveryPerDay = builder
                 .comment("Fraction of the gap between current stock and baseStock that heals per in-game day.",
-                        "0.5 means a distorted market is halfway back to normal after one day.")
-                .defineInRange("recoveryPerDay", 0.5D, 0.0D, 1.0D);
+                        "0.1 means a flooded market takes about a week to get halfway back to normal.")
+                .defineInRange("recoveryPerDay", 0.1D, 0.0D, 1.0D);
 
         deriveUnpricedItems = builder
                 .comment("Derive a price for any item not in base_prices.json by walking its recipe tree.",
@@ -101,6 +103,10 @@ public final class EconomyConfig {
                         "round trip available in the game.")
                 .defineInRange("brokerSpreadMultiplier", 0.75D, 0.0D, 1.0D);
 
+        configVersion = builder
+                .comment("Used to update old defaults when the mod changes them. Leave it alone.")
+                .defineInRange("configVersion", 1, 1, 1000);
+
         priceMultiplier = builder
                 .comment("Scales every default price in base_prices.json. 3 makes everything three times the",
                         "emeralds, so emeralds from villagers and mining go a third as far. Prices set with",
@@ -118,6 +124,15 @@ public final class EconomyConfig {
                         "smelted or stonecut from priced materials, or given a price with /soloeconomy price.")
                 .define("openMarket", false);
 
+        modRecipes = builder
+                .comment("Price items from any mod's recipes (Create machines, modded workbenches...), not just",
+                        "crafting, smelting and stonecutting. Best effort: only a recipe's ingredient list and",
+                        "main result are visible, so fluids and per-slot counts are missed (too cheap), and",
+                        "random byproducts or tools that aren't used up can make an item too valuable. Fix any",
+                        "odd price with /soloeconomy price. Modded items are only sold with openMarket on or",
+                        "when a datapack lists them under a merchant.")
+                .define("modRecipes", false);
+
         priceOverrides = builder
                 .comment("Base price changes, as \"item_id=emeralds\". These win over base_prices.json.",
                         "This file applies to every world; copy it into a world's serverconfig folder to",
@@ -129,6 +144,31 @@ public final class EconomyConfig {
                         o -> o instanceof String s && s.indexOf('=') > 0);
 
         builder.pop();
+    }
+
+    /**
+     * NeoForge keeps whatever an existing config file says, so a changed default never reaches
+     * anyone upgrading. Version 2 made bulk selling hit diminishing returns: settings still at
+     * their 0.3.x defaults move to the new ones, and anything a player changed is left alone.
+     */
+    public void migrate() {
+        if (configVersion.get() >= 2) {
+            return;
+        }
+        if (recoveryPerDay.get() == 0.5D) {
+            recoveryPerDay.set(0.1D);
+        }
+        if (elasticity.get() == 0.6D) {
+            elasticity.set(1.0D);
+        }
+        if (minPriceMultiplier.get() == 0.2D) {
+            minPriceMultiplier.set(0.05D);
+        }
+        if (marketDepth.get() == 1024) {
+            marketDepth.set(768);
+        }
+        configVersion.set(2);
+        configVersion.save();
     }
 
     /** Effective half-spread for a stall, accounting for whether a broker is working it. */

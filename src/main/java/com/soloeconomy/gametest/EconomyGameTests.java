@@ -12,6 +12,16 @@ import com.soloeconomy.market.MarketData;
 import com.soloeconomy.market.MerchantLoader;
 
 import net.minecraft.core.HolderLookup;
+import net.minecraft.core.NonNullList;
+import net.minecraft.resources.ResourceLocation;
+import net.minecraft.world.item.crafting.Ingredient;
+import net.minecraft.world.item.crafting.Recipe;
+import net.minecraft.world.item.crafting.RecipeHolder;
+import net.minecraft.world.item.crafting.RecipeInput;
+import net.minecraft.world.item.crafting.RecipeManager;
+import net.minecraft.world.item.crafting.RecipeSerializer;
+import net.minecraft.world.item.crafting.RecipeType;
+import net.minecraft.world.level.Level;
 import net.minecraft.gametest.framework.GameTest;
 import net.minecraft.gametest.framework.GameTestHelper;
 import net.minecraft.nbt.CompoundTag;
@@ -23,6 +33,7 @@ import net.minecraft.world.item.Items;
 import net.neoforged.neoforge.gametest.GameTestHolder;
 import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -247,10 +258,14 @@ public final class EconomyGameTests {
 
     /**
      * A price set with /soloeconomy price must win over base_prices.json, and crafted items must
-     * follow it. Reset must bring the default back. Runs the real command, parsing and all.
+     * follow it. Reset must bring the default back.
+     *
+     * <p>Sets the config in memory rather than through /soloeconomy price set: the command saves
+     * the file, and NeoForge's reload of it lands on a background thread in the middle of whatever
+     * test runs next. The read-only form of the command still runs, to cover its parsing.
      */
     @GameTest(template = TEMPLATE)
-    public static void priceOverridesWinAndCraftedItemsFollow(GameTestHelper helper) {
+    public static void priceOverridesWinAndCraftedItemsFollow(GameTestHelper helper) throws Exception {
         MinecraftServer server = helper.getLevel().getServer();
         List<? extends String> saved = EconomyConfig.INSTANCE.priceOverrides.get();
         double savedMultiplier = EconomyConfig.INSTANCE.priceMultiplier.get();
@@ -260,24 +275,27 @@ public final class EconomyGameTests {
             ServerEvents.rebuildCatalog(server);
             double defaultPrice = MarketCatalog.active().primitivePrice(Items.DIAMOND);
 
-            server.getCommands().performPrefixedCommand(server.createCommandSourceStack(),
-                    "soloeconomy price minecraft:diamond set 100");
+            EconomyConfig.INSTANCE.priceOverrides.set(List.of("diamond=100"));
+            ServerEvents.rebuildCatalog(server);
+            if (server.getCommands().getDispatcher().execute("soloeconomy price minecraft:diamond",
+                    server.createCommandSourceStack().withSuppressedOutput()) != 1) {
+                helper.fail("/soloeconomy price minecraft:diamond did not run");
+            }
             double spread = EconomyConfig.INSTANCE.spread.get();
             double blockSale = new MarketData().quoteSell(Items.DIAMOND_BLOCK, 1, 0L, spread).exactValue();
-            if (MarketCatalog.active().primitivePrice(Items.DIAMOND) != 100.0D || blockSale < 9 * 100 * (1 - spread) * 0.9D) {
+            if (MarketCatalog.active().primitivePrice(Items.DIAMOND) != 100.0D || blockSale < 9 * 100 * (1 - spread) * 0.8D) {
                 helper.fail(String.format("Override ignored: diamond %.2f, diamond block sells for %.2f",
                         MarketCatalog.active().primitivePrice(Items.DIAMOND), blockSale));
             }
 
-            server.getCommands().performPrefixedCommand(server.createCommandSourceStack(),
-                    "soloeconomy price minecraft:diamond reset");
+            EconomyConfig.INSTANCE.priceOverrides.set(List.of());
+            ServerEvents.rebuildCatalog(server);
             if (MarketCatalog.active().primitivePrice(Items.DIAMOND) != defaultPrice) {
                 helper.fail("Clearing the override did not restore the default diamond price");
             }
         } finally {
             EconomyConfig.INSTANCE.priceOverrides.set(saved);
             EconomyConfig.INSTANCE.priceMultiplier.set(savedMultiplier);
-            EconomyConfig.INSTANCE.priceOverrides.save(); // the command saved the file; put it back
             ServerEvents.rebuildCatalog(server);
         }
         helper.succeed();
@@ -318,6 +336,10 @@ public final class EconomyGameTests {
     /** Nothing is buyable until found, carrying it unlocks it, and only tradeable things count. */
     @GameTest(template = TEMPLATE)
     public static void carryingAnItemUnlocksBuyingIt(GameTestHelper helper) {
+        if (net.neoforged.fml.ModList.get().isLoaded("create")) {
+            helper.succeed(); // Create sends a mock player packets it can't receive, crashing the test server
+            return;
+        }
         MinecraftServer server = helper.getLevel().getServer();
         boolean savedOpen = EconomyConfig.INSTANCE.openMarket.get();
         EconomyConfig.INSTANCE.openMarket.set(false); // with it on, dirt would be tradeable
@@ -370,5 +392,145 @@ public final class EconomyGameTests {
             ServerEvents.rebuildCatalog(server);
         }
         helper.succeed();
+    }
+
+    /**
+     * A farm dumping the same thing every day must hit diminishing returns: a month of it has to
+     * pay well under four times the first week.
+     *
+     * <p>Guards against: markets that healed half their drop overnight and floored at 20%, where a
+     * 1000-logs-a-day farm earned 8,200 emeralds a month, 4x its first week, enough for an elytra
+     * every day.
+     */
+    @GameTest(template = TEMPLATE)
+    public static void dailyDumpingHitsDiminishingReturns(GameTestHelper helper) {
+        buildCatalog(helper);
+        double spread = EconomyConfig.INSTANCE.spread.get();
+        MarketData market = new MarketData();
+        double week = 0.0D;
+        double month = 0.0D;
+        for (int day = 0; day < 30; day++) {
+            double paid = market.commitSell(Items.OAK_LOG, 1000, day * 24000L, spread).exactValue();
+            month += paid;
+            if (day < 7) {
+                week += paid;
+            }
+        }
+        if (month > 3.0D * week) {
+            helper.fail(String.format("A month of 1000 logs a day paid %.0f, %.1fx the first week's %.0f",
+                    month, month / week, week));
+        }
+        helper.succeed();
+    }
+
+    /**
+     * modRecipes must price a modded machine's output from its ingredients, and stay off by default.
+     * The "machine" here is a recipe class the market doesn't otherwise read, with a Create-style
+     * chance output that must be priced by its expected count, not as a sure thing.
+     */
+    @GameTest(template = TEMPLATE)
+    public static void modRecipesPriceMachineOutputsFromIngredients(GameTestHelper helper) {
+        MinecraftServer server = helper.getLevel().getServer();
+        Recipe<RecipeInput> machine = new TestMachine();
+        RecipeManager recipes = new RecipeManager(server.registryAccess());
+        List<RecipeHolder<?>> all = new ArrayList<>(server.getRecipeManager().getRecipes());
+        all.add(new RecipeHolder<>(ResourceLocation.fromNamespaceAndPath(SoloEconomy.MOD_ID, "test_machine"), machine));
+        recipes.replaceRecipes(all);
+
+        boolean saved = EconomyConfig.INSTANCE.modRecipes.get();
+        BasePriceLoader.Parsed seeds = BasePriceLoader.current();
+        try {
+            EconomyConfig.INSTANCE.modRecipes.set(false);
+            MarketCatalog off = MarketCatalog.build(seeds.prices(), seeds.untradeable(), MerchantLoader.current(),
+                    recipes, server.registryAccess());
+            if (off.bundle(Items.PIGLIN_BANNER_PATTERN) != null) {
+                helper.fail("A modded recipe was read with modRecipes off");
+            }
+
+            EconomyConfig.INSTANCE.modRecipes.set(true);
+            MarketCatalog on = MarketCatalog.build(seeds.prices(), seeds.untradeable(), MerchantLoader.current(),
+                    recipes, server.registryAccess());
+            if (on.bundle(Items.PIGLIN_BANNER_PATTERN) == null) {
+                helper.fail("modRecipes did not price the machine's output");
+            }
+            // Two patterns at a 25% chance: half a pattern per craft on average, so each costs double.
+            double expected = 2 * (2 * raw(on, Items.IRON_INGOT) + raw(on, Items.REDSTONE));
+            double actual = raw(on, Items.PIGLIN_BANNER_PATTERN);
+            if (Math.abs(actual - expected) > EPSILON) {
+                helper.fail(String.format("Machine output worth %.3f, its ingredients %.3f", actual, expected));
+            }
+        } finally {
+            EconomyConfig.INSTANCE.modRecipes.set(saved);
+        }
+        helper.succeed();
+    }
+
+    private static double raw(MarketCatalog catalog, Item item) {
+        double total = 0.0D;
+        for (var part : catalog.bundle(item).contents().entrySet()) {
+            total += part.getValue() * catalog.primitivePrice(part.getKey());
+        }
+        return total;
+    }
+
+    /** A modded machine recipe, shaped like Create's: outputs with a chance, read by method name. */
+    public static final class TestMachine implements Recipe<RecipeInput> {
+        public List<TestOutput> getRollableResults() {
+            return List.of(new TestOutput(new ItemStack(Items.PIGLIN_BANNER_PATTERN, 2), 0.25F));
+        }
+
+        @Override
+        public boolean matches(RecipeInput input, Level level) {
+            return false;
+        }
+
+        @Override
+        public ItemStack assemble(RecipeInput input, HolderLookup.Provider registries) {
+            return getResultItem(registries);
+        }
+
+        @Override
+        public boolean canCraftInDimensions(int width, int height) {
+            return false;
+        }
+
+        @Override
+        public ItemStack getResultItem(HolderLookup.Provider registries) {
+            return new ItemStack(Items.PIGLIN_BANNER_PATTERN);
+        }
+
+        @Override
+        public NonNullList<Ingredient> getIngredients() {
+            return NonNullList.of(Ingredient.EMPTY, Ingredient.of(Items.IRON_INGOT),
+                    Ingredient.of(Items.IRON_INGOT), Ingredient.of(Items.REDSTONE));
+        }
+
+        @Override
+        public RecipeSerializer<?> getSerializer() {
+            return RecipeSerializer.SHAPELESS_RECIPE;
+        }
+
+        @Override
+        public RecipeType<?> getType() {
+            return RecipeType.CRAFTING;
+        }
+    }
+
+    public static final class TestOutput {
+        private final ItemStack stack;
+        private final float chance;
+
+        TestOutput(ItemStack stack, float chance) {
+            this.stack = stack;
+            this.chance = chance;
+        }
+
+        public ItemStack getStack() {
+            return stack;
+        }
+
+        public float getChance() {
+            return chance;
+        }
     }
 }

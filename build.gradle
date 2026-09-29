@@ -46,6 +46,17 @@ neoForge {
 
 repositories {
     mavenCentral()
+    exclusiveContent {
+        forRepository { maven { url = "https://api.modrinth.com/maven" } }
+        filter { includeGroup "maven.modrinth" }
+    }
+}
+
+// Test against Create without shipping it: ./gradlew runClient -PwithCreate
+dependencies {
+    if (project.hasProperty('withCreate')) {
+        runtimeOnly "maven.modrinth:create:88L641Un" // 6.0.8 for 1.21.1, the newest that runs on NeoForge 21.1.209
+    }
 }
 
 var generateModMetadata = tasks.register('generateModMetadata', ProcessResources) {

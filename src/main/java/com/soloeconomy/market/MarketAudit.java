@@ -99,7 +99,7 @@ public final class MarketAudit {
     }
 
     /** A recipe that pays more to sell than its inputs cost to buy. */
-    public record LoopRisk(Item result, int resultCount, List<Item> inputs, double revenue, double cost) {
+    public record LoopRisk(Item result, double resultCount, List<Item> inputs, double revenue, double cost) {
 
         public double profit() {
             return revenue - cost;
@@ -113,8 +113,9 @@ public final class MarketAudit {
                 }
                 from.append(BuiltInRegistries.ITEM.getKey(input));
             }
-            return String.format("%dx %s from %s: costs %.3f, sells for %.3f (profit %.3f)",
-                    resultCount, BuiltInRegistries.ITEM.getKey(result), from, cost, revenue, profit());
+            String count = resultCount % 1 == 0 ? String.valueOf((long) resultCount) : String.format("%.2f", resultCount);
+            return String.format("%sx %s from %s: costs %.3f, sells for %.3f (profit %.3f)",
+                    count, BuiltInRegistries.ITEM.getKey(result), from, cost, revenue, profit());
         }
     }
 }
