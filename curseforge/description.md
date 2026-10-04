@@ -109,7 +109,6 @@ About 225 raw materials have set prices. Everything else is priced from the ingr
 
 This is an early release.
 
-- **Placeholder art.** The stall and Broker textures are temporary.
 - **Not yet tradeable:** netherite tools and armour (smithing recipes aren't supported yet), potions, spawn eggs, music discs, pottery sherds and smithing templates.
 - **Modded items** are traded with `openMarket` on or when a datapack lists them under a merchant. Items from modded machines and workbenches need `modRecipes` on, and some may need a price set by hand.
 - **The balance display** sits in the top-right corner and may overlap a minimap.

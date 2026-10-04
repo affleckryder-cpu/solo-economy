@@ -24,7 +24,9 @@ public final class ModBlocks {
                     .mapColor(MapColor.WOOD)
                     .strength(2.5F)
                     .sound(SoundType.WOOD)
-                    .ignitedByLava()));
+                    .ignitedByLava()
+                    // The model is a counter under an awning, not a full cube: don't hide neighbours' faces.
+                    .noOcclusion()));
 
     public static final DeferredItem<BlockItem> MARKET_STALL_ITEM =
             ITEMS.registerSimpleBlockItem("market_stall", MARKET_STALL, new Item.Properties());
