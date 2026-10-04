@@ -154,3 +154,17 @@ The textures are placeholders. If you're replacing the art soon, take these afte
 - [ ] **Died once in a test world** and confirmed your balance survived. The page doesn't promise this, but players will assume it.
 - [ ] **Screenshots taken** with the mod's current art, or after replacing it.
 - [ ] **File uploaded as Beta.** CurseForge reviews both the project and the file before they go public.
+
+---
+
+## 6. Roadmap image
+
+`curseforge/roadmap.png` (1920×1080) is for the gallery. Its source is `curseforge/roadmap.html`: edit the three lists there, then re-render from the `curseforge` folder:
+
+```bash
+"C:/Program Files/Google/Chrome/Application/chrome.exe" --headless=new --hide-scrollbars --window-size=1920,1080 --virtual-time-budget=8000 --screenshot="roadmap.png" "roadmap.html"
+```
+
+**Title:** Roadmap
+
+**Description:** What's released, what's coming next, and ideas for later. Plans can change.
