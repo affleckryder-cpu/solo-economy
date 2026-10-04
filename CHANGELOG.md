@@ -1,3 +1,15 @@
+# Solo Economy 0.3.4
+
+**Minecraft 1.21.1 · NeoForge (built on 21.1.209) · Java 21**
+
+Now also available for **Forge 1.20.1**.
+
+## Fixed
+
+- Items you sell or deposit now disappear from the inventory panel straight away. Before, they stayed visible until you closed the market, even though they were already gone.
+
+---
+
 # Solo Economy 0.3.3
 
 **Minecraft 1.21.1 · NeoForge (built on 21.1.209) · Java 21**

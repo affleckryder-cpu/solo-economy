@@ -120,9 +120,11 @@ This is an early release.
 
 ## Requirements
 
-- Minecraft **1.21.1**
-- **NeoForge** (built on 21.1.209)
+- Minecraft **1.21.1** on **NeoForge** (built on 21.1.209), or
+- Minecraft **1.20.1** on **Forge** (47 or newer)
 - Required on **both** client and server
+
+On Forge 1.20.1 the config file is per world: `saves/<world>/serverconfig/soloeconomy-server.toml`. Put a copy in `defaultconfigs` to use it for new worlds.
 
 ---
 

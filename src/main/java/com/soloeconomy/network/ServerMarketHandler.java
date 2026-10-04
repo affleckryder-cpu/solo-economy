@@ -8,6 +8,7 @@ import com.soloeconomy.menu.MarketMenu;
 
 import net.minecraft.ChatFormatting;
 import net.minecraft.network.chat.Component;
+import net.minecraft.network.protocol.game.ClientboundContainerSetSlotPacket;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.util.Mth;
 import net.minecraft.world.entity.player.Inventory;
@@ -188,6 +189,7 @@ public final class ServerMarketHandler {
             sell(player, data, item, requested, gameTime, spread);
         }
 
+        syncInventory(player);
         EconomyAccount.sync(player);
     }
 
@@ -286,6 +288,7 @@ public final class ServerMarketHandler {
             feedback(player, Component.translatable("message.soloeconomy.withdrew", amount), false);
         }
 
+        syncInventory(player);
         EconomyAccount.sync(player);
     }
 
@@ -344,6 +347,16 @@ public final class ServerMarketHandler {
             remaining -= size;
         }
         player.containerMenu.broadcastChanges();
+    }
+
+    /**
+     * The market menu has no slots, so nothing else tells the client that its inventory changed.
+     * Container id -2 writes straight into the player's inventory, whatever screen is open.
+     */
+    private static void syncInventory(ServerPlayer player) {
+        for (int slot = 0; slot < TRADEABLE_SLOTS; slot++) {
+            player.connection.send(new ClientboundContainerSetSlotPacket(-2, 0, slot, player.getInventory().getItem(slot)));
+        }
     }
 
     private static void feedback(ServerPlayer player, Component message, boolean problem) {
