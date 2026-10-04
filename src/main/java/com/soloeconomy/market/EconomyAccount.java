@@ -1,19 +1,23 @@
 package com.soloeconomy.market;
 
 import com.soloeconomy.network.BalanceSyncPayload;
-import com.soloeconomy.registry.ModAttachments;
+import com.soloeconomy.network.ModNetwork;
 
+import net.minecraft.nbt.CompoundTag;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.player.Player;
-import net.neoforged.neoforge.network.PacketDistributor;
 
 /**
  * Read and write a player's emerald account.
  *
- * <p>The balance lives as a data attachment that copies on death, so dying is never a way to lose
- * (or duplicate) money. Every mutation syncs to the owning client so the HUD stays honest.
+ * <p>The balance lives in the player's persisted Forge data, which Forge copies across death and
+ * respawn, so dying is never a way to lose (or duplicate) money. Every mutation syncs to the
+ * owning client so the HUD stays honest.
  */
 public final class EconomyAccount {
+
+    private static final String DATA_KEY = "soloeconomy";
+    private static final String BALANCE_KEY = "balance_cents";
 
     private EconomyAccount() {
     }
@@ -21,13 +25,31 @@ public final class EconomyAccount {
     /** Hundredths of an emerald per emerald. Balances are integers so money never drifts. */
     public static final long CENTS_PER_EMERALD = 100L;
 
+    /** This mod's corner of the player's data: saved with the player and kept through death. */
+    static CompoundTag data(Player player) {
+        CompoundTag root = player.getPersistentData();
+        if (!root.contains(Player.PERSISTED_NBT_TAG)) {
+            root.put(Player.PERSISTED_NBT_TAG, new CompoundTag());
+        }
+        CompoundTag persisted = root.getCompound(Player.PERSISTED_NBT_TAG);
+        if (!persisted.contains(DATA_KEY)) {
+            persisted.put(DATA_KEY, new CompoundTag());
+        }
+        return persisted.getCompound(DATA_KEY);
+    }
+
+    /** False for a player who has never had an account, which is how a first login is recognised. */
+    public static boolean hasAccount(Player player) {
+        return data(player).contains(BALANCE_KEY);
+    }
+
     /** The account balance, in hundredths of an emerald. */
     public static long balance(Player player) {
-        return player.getData(ModAttachments.BALANCE_CENTS.get());
+        return data(player).getLong(BALANCE_KEY);
     }
 
     public static void setBalance(Player player, long cents) {
-        player.setData(ModAttachments.BALANCE_CENTS.get(), Math.max(0L, cents));
+        data(player).putLong(BALANCE_KEY, Math.max(0L, cents));
         sync(player);
     }
 
@@ -66,9 +88,12 @@ public final class EconomyAccount {
     }
 
     public static void sync(Player player) {
-        // Connections without the mod (or GameTest mock players) can't receive it.
-        if (player instanceof ServerPlayer serverPlayer && serverPlayer.connection.hasChannel(BalanceSyncPayload.TYPE)) {
-            PacketDistributor.sendToPlayer(serverPlayer, new BalanceSyncPayload(balance(serverPlayer)));
+        // Fake players (Create deployers, GameTest mocks) have no real channel, and a connection
+        // without the mod can't receive it either.
+        if (player instanceof ServerPlayer serverPlayer && serverPlayer.connection != null
+                && serverPlayer.connection.connection.channel() != null
+                && ModNetwork.CHANNEL.isRemotePresent(serverPlayer.connection.connection)) {
+            ModNetwork.sendTo(serverPlayer, new BalanceSyncPayload(balance(serverPlayer)));
         }
     }
 }

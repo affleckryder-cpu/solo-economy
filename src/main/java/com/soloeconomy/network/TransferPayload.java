@@ -1,12 +1,6 @@
 package com.soloeconomy.network;
 
-import com.soloeconomy.SoloEconomy;
-
-import net.minecraft.network.RegistryFriendlyByteBuf;
-import net.minecraft.network.codec.ByteBufCodecs;
-import net.minecraft.network.codec.StreamCodec;
-import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.network.FriendlyByteBuf;
 
 /**
  * Move physical emeralds between the inventory and the account, 1:1.
@@ -14,19 +8,14 @@ import net.minecraft.resources.ResourceLocation;
  * @param amount   emeralds to move, or -1 for "as many as possible"
  * @param deposit  true to put emeralds in, false to take them out
  */
-public record TransferPayload(int amount, boolean deposit) implements CustomPacketPayload {
+public record TransferPayload(int amount, boolean deposit) {
 
-    public static final Type<TransferPayload> TYPE = new Type<>(
-            ResourceLocation.fromNamespaceAndPath(SoloEconomy.MOD_ID, "transfer"));
+    public void encode(FriendlyByteBuf buf) {
+        buf.writeVarInt(amount);
+        buf.writeBoolean(deposit);
+    }
 
-    public static final StreamCodec<RegistryFriendlyByteBuf, TransferPayload> STREAM_CODEC =
-            StreamCodec.composite(
-                    ByteBufCodecs.VAR_INT, TransferPayload::amount,
-                    ByteBufCodecs.BOOL, TransferPayload::deposit,
-                    TransferPayload::new);
-
-    @Override
-    public Type<? extends CustomPacketPayload> type() {
-        return TYPE;
+    public static TransferPayload decode(FriendlyByteBuf buf) {
+        return new TransferPayload(buf.readVarInt(), buf.readBoolean());
     }
 }

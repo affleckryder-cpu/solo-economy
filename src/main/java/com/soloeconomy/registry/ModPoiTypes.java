@@ -3,11 +3,11 @@ package com.soloeconomy.registry;
 import com.google.common.collect.ImmutableSet;
 import com.soloeconomy.SoloEconomy;
 
-import net.minecraft.core.registries.Registries;
 import net.minecraft.world.entity.ai.village.poi.PoiType;
-import net.neoforged.bus.api.IEventBus;
-import net.neoforged.neoforge.registries.DeferredHolder;
-import net.neoforged.neoforge.registries.DeferredRegister;
+import net.minecraftforge.eventbus.api.IEventBus;
+import net.minecraftforge.registries.DeferredRegister;
+import net.minecraftforge.registries.ForgeRegistries;
+import net.minecraftforge.registries.RegistryObject;
 
 /**
  * The Market Stall is a point of interest so that villagers path to it and claim it as a job site,
@@ -16,9 +16,9 @@ import net.neoforged.neoforge.registries.DeferredRegister;
 public final class ModPoiTypes {
 
     public static final DeferredRegister<PoiType> POI_TYPES =
-            DeferredRegister.create(Registries.POINT_OF_INTEREST_TYPE, SoloEconomy.MOD_ID);
+            DeferredRegister.create(ForgeRegistries.POI_TYPES, SoloEconomy.MOD_ID);
 
-    public static final DeferredHolder<PoiType, PoiType> MARKET_STALL = POI_TYPES.register("market_stall",
+    public static final RegistryObject<PoiType> MARKET_STALL = POI_TYPES.register("market_stall",
             () -> new PoiType(
                     ImmutableSet.copyOf(ModBlocks.MARKET_STALL.get().getStateDefinition().getPossibleStates()),
                     1,

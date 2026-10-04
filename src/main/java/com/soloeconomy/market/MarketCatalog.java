@@ -3,7 +3,7 @@ package com.soloeconomy.market;
 import com.soloeconomy.SoloEconomy;
 import com.soloeconomy.config.EconomyConfig;
 
-import net.minecraft.core.HolderLookup;
+import net.minecraft.core.RegistryAccess;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.resources.ResourceLocation;
@@ -15,7 +15,6 @@ import net.minecraft.world.item.crafting.AbstractCookingRecipe;
 import net.minecraft.world.item.crafting.CraftingRecipe;
 import net.minecraft.world.item.crafting.Ingredient;
 import net.minecraft.world.item.crafting.Recipe;
-import net.minecraft.world.item.crafting.RecipeHolder;
 import net.minecraft.world.item.crafting.RecipeManager;
 import net.minecraft.world.item.crafting.SingleItemRecipe;
 
@@ -186,7 +185,7 @@ public final class MarketCatalog {
                                       Set<Item> blocked,
                                       List<MerchantLoader.Definition> merchantDefinitions,
                                       RecipeManager recipeManager,
-                                      HolderLookup.Provider registries) {
+                                      RegistryAccess registries) {
         Map<Item, Double> primitives = new HashMap<>();
         for (Map.Entry<Item, Double> seed : seeds.entrySet()) {
             if (!blocked.contains(seed.getKey())) {
@@ -510,12 +509,11 @@ public final class MarketCatalog {
     }
 
     private static List<CraftPath> collectRecipes(RecipeManager recipeManager,
-                                                  HolderLookup.Provider registries,
+                                                  RegistryAccess registries,
                                                   Set<Item> blocked) {
         List<CraftPath> nodes = new ArrayList<>();
 
-        for (RecipeHolder<?> holder : recipeManager.getRecipes()) {
-            Recipe<?> recipe = holder.value();
+        for (Recipe<?> recipe : recipeManager.getRecipes()) {
             if (!reads(recipe)) {
                 continue;
             }

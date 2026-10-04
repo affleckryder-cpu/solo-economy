@@ -11,13 +11,12 @@ import com.soloeconomy.market.MarketCatalog;
 import com.soloeconomy.market.MarketData;
 import com.soloeconomy.market.MerchantLoader;
 
-import net.minecraft.core.HolderLookup;
 import net.minecraft.core.NonNullList;
+import net.minecraft.core.RegistryAccess;
+import net.minecraft.world.Container;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.item.crafting.Ingredient;
 import net.minecraft.world.item.crafting.Recipe;
-import net.minecraft.world.item.crafting.RecipeHolder;
-import net.minecraft.world.item.crafting.RecipeInput;
 import net.minecraft.world.item.crafting.RecipeManager;
 import net.minecraft.world.item.crafting.RecipeSerializer;
 import net.minecraft.world.item.crafting.RecipeType;
@@ -26,12 +25,12 @@ import net.minecraft.gametest.framework.GameTest;
 import net.minecraft.gametest.framework.GameTestHelper;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.server.MinecraftServer;
-import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
-import net.neoforged.neoforge.gametest.GameTestHolder;
-import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
+import net.minecraftforge.gametest.GameTestHolder;
+import net.minecraftforge.gametest.PrefixGameTestTemplate;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -227,14 +226,13 @@ public final class EconomyGameTests {
     @GameTest(template = TEMPLATE)
     public static void marketStockSurvivesSaveAndRecovers(GameTestHelper helper) {
         MarketCatalog catalog = buildCatalog(helper);
-        HolderLookup.Provider registries = helper.getLevel().registryAccess();
         double spread = EconomyConfig.INSTANCE.spread.get();
 
         MarketData original = new MarketData();
         original.commitSell(Items.DIAMOND, 200, 0L, spread);
         original.commitBuy(Items.OAK_LOG, 50, 0L, spread);
 
-        MarketData loaded = MarketData.load(original.save(new CompoundTag(), registries), registries);
+        MarketData loaded = MarketData.load(original.save(new CompoundTag()));
 
         List<Item> checked = List.of(Items.DIAMOND, Items.OAK_LOG, Items.COBBLESTONE);
         String mismatches = checked.stream()
@@ -336,7 +334,7 @@ public final class EconomyGameTests {
     /** Nothing is buyable until found, carrying it unlocks it, and only tradeable things count. */
     @GameTest(template = TEMPLATE)
     public static void carryingAnItemUnlocksBuyingIt(GameTestHelper helper) {
-        if (net.neoforged.fml.ModList.get().isLoaded("create")) {
+        if (net.minecraftforge.fml.ModList.get().isLoaded("create")) {
             helper.succeed(); // Create sends a mock player packets it can't receive, crashing the test server
             return;
         }
@@ -354,7 +352,7 @@ public final class EconomyGameTests {
     }
 
     private static void checkDiscovery(GameTestHelper helper) {
-        ServerPlayer player = helper.makeMockServerPlayerInLevel();
+        Player player = helper.makeMockPlayer(); // Forge 1.20.1 can't log a mock server player in
         if (Discovery.canBuy(player, Items.DIAMOND)) {
             helper.fail("A new player can already buy diamonds");
         }
@@ -431,10 +429,9 @@ public final class EconomyGameTests {
     @GameTest(template = TEMPLATE)
     public static void modRecipesPriceMachineOutputsFromIngredients(GameTestHelper helper) {
         MinecraftServer server = helper.getLevel().getServer();
-        Recipe<RecipeInput> machine = new TestMachine();
-        RecipeManager recipes = new RecipeManager(server.registryAccess());
-        List<RecipeHolder<?>> all = new ArrayList<>(server.getRecipeManager().getRecipes());
-        all.add(new RecipeHolder<>(ResourceLocation.fromNamespaceAndPath(SoloEconomy.MOD_ID, "test_machine"), machine));
+        RecipeManager recipes = new RecipeManager();
+        List<Recipe<?>> all = new ArrayList<>(server.getRecipeManager().getRecipes());
+        all.add(new TestMachine());
         recipes.replaceRecipes(all);
 
         boolean saved = EconomyConfig.INSTANCE.modRecipes.get();
@@ -474,18 +471,23 @@ public final class EconomyGameTests {
     }
 
     /** A modded machine recipe, shaped like Create's: outputs with a chance, read by method name. */
-    public static final class TestMachine implements Recipe<RecipeInput> {
+    public static final class TestMachine implements Recipe<Container> {
         public List<TestOutput> getRollableResults() {
             return List.of(new TestOutput(new ItemStack(Items.PIGLIN_BANNER_PATTERN, 2), 0.25F));
         }
 
         @Override
-        public boolean matches(RecipeInput input, Level level) {
+        public ResourceLocation getId() {
+            return new ResourceLocation(SoloEconomy.MOD_ID, "test_machine");
+        }
+
+        @Override
+        public boolean matches(Container input, Level level) {
             return false;
         }
 
         @Override
-        public ItemStack assemble(RecipeInput input, HolderLookup.Provider registries) {
+        public ItemStack assemble(Container input, RegistryAccess registries) {
             return getResultItem(registries);
         }
 
@@ -495,7 +497,7 @@ public final class EconomyGameTests {
         }
 
         @Override
-        public ItemStack getResultItem(HolderLookup.Provider registries) {
+        public ItemStack getResultItem(RegistryAccess registries) {
             return new ItemStack(Items.PIGLIN_BANNER_PATTERN);
         }
 

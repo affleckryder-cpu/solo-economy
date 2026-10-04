@@ -1,6 +1,5 @@
 package com.soloeconomy.block;
 
-import com.mojang.serialization.MapCodec;
 import com.soloeconomy.menu.MarketMenu;
 import com.soloeconomy.registry.ModProfessions;
 
@@ -8,6 +7,8 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.core.GlobalPos;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerLevel;
+import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.InteractionHand;
 import net.minecraft.world.InteractionResult;
 import net.minecraft.world.SimpleMenuProvider;
 import net.minecraft.world.entity.ai.memory.MemoryModuleType;
@@ -20,6 +21,7 @@ import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.block.state.StateDefinition;
 import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.BlockHitResult;
+import net.minecraftforge.network.NetworkHooks;
 
 import java.util.List;
 import java.util.Optional;
@@ -30,19 +32,12 @@ import java.util.Optional;
  */
 public class MarketStallBlock extends HorizontalDirectionalBlock {
 
-    public static final MapCodec<MarketStallBlock> CODEC = simpleCodec(MarketStallBlock::new);
-
     /** How far from the stall a broker can wander and still count as staffing it. */
     private static final double BROKER_SEARCH_RADIUS = 8.0D;
 
     public MarketStallBlock(Properties properties) {
         super(properties);
         registerDefaultState(stateDefinition.any().setValue(FACING, net.minecraft.core.Direction.NORTH));
-    }
-
-    @Override
-    protected MapCodec<? extends HorizontalDirectionalBlock> codec() {
-        return CODEC;
     }
 
     @Override
@@ -56,14 +51,14 @@ public class MarketStallBlock extends HorizontalDirectionalBlock {
     }
 
     @Override
-    protected InteractionResult useWithoutItem(BlockState state, Level level, BlockPos pos,
-                                               Player player, BlockHitResult hit) {
+    public InteractionResult use(BlockState state, Level level, BlockPos pos, Player player,
+                                 InteractionHand hand, BlockHitResult hit) {
         if (level.isClientSide()) {
             return InteractionResult.SUCCESS;
         }
 
         boolean staffed = hasBrokerAssigned((ServerLevel) level, pos);
-        player.openMenu(new SimpleMenuProvider(
+        NetworkHooks.openScreen((ServerPlayer) player, new SimpleMenuProvider(
                 (windowId, inventory, p) -> new MarketMenu(windowId, inventory, pos, staffed),
                 Component.translatable("container.soloeconomy.market")));
         return InteractionResult.CONSUME;

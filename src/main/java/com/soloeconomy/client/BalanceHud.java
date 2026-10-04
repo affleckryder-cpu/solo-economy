@@ -1,6 +1,5 @@
 package com.soloeconomy.client;
 
-import net.minecraft.client.DeltaTracker;
 import net.minecraft.client.Minecraft;
 import com.soloeconomy.market.EconomyAccount;
 
@@ -23,7 +22,7 @@ public final class BalanceHud {
     private BalanceHud() {
     }
 
-    public static void render(GuiGraphics graphics, DeltaTracker deltaTracker) {
+    public static void render(GuiGraphics graphics) {
         Minecraft minecraft = Minecraft.getInstance();
         if (minecraft.player == null || minecraft.options.hideGui) {
             return;

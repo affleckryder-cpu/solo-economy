@@ -1,13 +1,7 @@
 package com.soloeconomy.network;
 
-import com.soloeconomy.SoloEconomy;
-
-import net.minecraft.core.registries.Registries;
-import net.minecraft.network.RegistryFriendlyByteBuf;
-import net.minecraft.network.codec.ByteBufCodecs;
-import net.minecraft.network.codec.StreamCodec;
-import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.core.registries.BuiltInRegistries;
+import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.world.item.Item;
 
 /**
@@ -16,23 +10,18 @@ import net.minecraft.world.item.Item;
  * @param sellCount how many you could actually sell - what you are carrying, capped by the request
  * @param buyCount  how many you could actually afford, capped by the request
  */
-public record QuotePayload(Item item, int sellCount, long sellTotal, int buyCount, long buyTotal)
-        implements CustomPacketPayload {
+public record QuotePayload(Item item, int sellCount, long sellTotal, int buyCount, long buyTotal) {
 
-    public static final Type<QuotePayload> TYPE = new Type<>(
-            ResourceLocation.fromNamespaceAndPath(SoloEconomy.MOD_ID, "quote"));
+    public void encode(FriendlyByteBuf buf) {
+        buf.writeId(BuiltInRegistries.ITEM, item);
+        buf.writeVarInt(sellCount);
+        buf.writeVarLong(sellTotal);
+        buf.writeVarInt(buyCount);
+        buf.writeVarLong(buyTotal);
+    }
 
-    public static final StreamCodec<RegistryFriendlyByteBuf, QuotePayload> STREAM_CODEC =
-            StreamCodec.composite(
-                    ByteBufCodecs.registry(Registries.ITEM), QuotePayload::item,
-                    ByteBufCodecs.VAR_INT, QuotePayload::sellCount,
-                    ByteBufCodecs.VAR_LONG, QuotePayload::sellTotal,
-                    ByteBufCodecs.VAR_INT, QuotePayload::buyCount,
-                    ByteBufCodecs.VAR_LONG, QuotePayload::buyTotal,
-                    QuotePayload::new);
-
-    @Override
-    public Type<? extends CustomPacketPayload> type() {
-        return TYPE;
+    public static QuotePayload decode(FriendlyByteBuf buf) {
+        return new QuotePayload(buf.readById(BuiltInRegistries.ITEM), buf.readVarInt(), buf.readVarLong(),
+                buf.readVarInt(), buf.readVarLong());
     }
 }

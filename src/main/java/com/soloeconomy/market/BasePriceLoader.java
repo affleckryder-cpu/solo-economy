@@ -34,7 +34,7 @@ import java.util.Set;
 public class BasePriceLoader extends SimplePreparableReloadListener<BasePriceLoader.Parsed> {
 
     public static final ResourceLocation FILE =
-            ResourceLocation.fromNamespaceAndPath(SoloEconomy.MOD_ID, "base_prices.json");
+            new ResourceLocation(SoloEconomy.MOD_ID, "base_prices.json");
 
     private static final Gson GSON = new Gson();
 

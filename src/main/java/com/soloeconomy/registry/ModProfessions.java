@@ -3,12 +3,12 @@ package com.soloeconomy.registry;
 import com.google.common.collect.ImmutableSet;
 import com.soloeconomy.SoloEconomy;
 
-import net.minecraft.core.registries.Registries;
 import net.minecraft.sounds.SoundEvents;
 import net.minecraft.world.entity.npc.VillagerProfession;
-import net.neoforged.bus.api.IEventBus;
-import net.neoforged.neoforge.registries.DeferredHolder;
-import net.neoforged.neoforge.registries.DeferredRegister;
+import net.minecraftforge.eventbus.api.IEventBus;
+import net.minecraftforge.registries.DeferredRegister;
+import net.minecraftforge.registries.ForgeRegistries;
+import net.minecraftforge.registries.RegistryObject;
 
 /**
  * The Broker: a villager profession whose job site is the Market Stall.
@@ -20,9 +20,9 @@ import net.neoforged.neoforge.registries.DeferredRegister;
 public final class ModProfessions {
 
     public static final DeferredRegister<VillagerProfession> PROFESSIONS =
-            DeferredRegister.create(Registries.VILLAGER_PROFESSION, SoloEconomy.MOD_ID);
+            DeferredRegister.create(ForgeRegistries.VILLAGER_PROFESSIONS, SoloEconomy.MOD_ID);
 
-    public static final DeferredHolder<VillagerProfession, VillagerProfession> BROKER =
+    public static final RegistryObject<VillagerProfession> BROKER =
             PROFESSIONS.register("broker", () -> new VillagerProfession(
                     "broker",
                     holder -> holder.value() == ModPoiTypes.MARKET_STALL.get(),

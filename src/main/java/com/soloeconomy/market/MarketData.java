@@ -2,7 +2,6 @@ package com.soloeconomy.market;
 
 import com.soloeconomy.config.EconomyConfig;
 
-import net.minecraft.core.HolderLookup;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.ListTag;
@@ -35,13 +34,9 @@ public class MarketData extends SavedData {
 
     private final Map<Item, Entry> entries = new HashMap<>();
 
-    public static SavedData.Factory<MarketData> factory() {
-        return new SavedData.Factory<>(MarketData::new, MarketData::load, null);
-    }
-
     public static MarketData get(MinecraftServer server) {
         ServerLevel overworld = server.overworld();
-        return overworld.getDataStorage().computeIfAbsent(factory(), FILE_ID);
+        return overworld.getDataStorage().computeIfAbsent(MarketData::load, MarketData::new, FILE_ID);
     }
 
     public MarketData() {
@@ -281,7 +276,7 @@ public class MarketData extends SavedData {
     // Persistence
     // ------------------------------------------------------------------
 
-    public static MarketData load(CompoundTag tag, HolderLookup.Provider registries) {
+    public static MarketData load(CompoundTag tag) {
         MarketData data = new MarketData();
         ListTag list = tag.getList("entries", Tag.TAG_COMPOUND);
         for (int i = 0; i < list.size(); i++) {
@@ -299,7 +294,7 @@ public class MarketData extends SavedData {
     }
 
     @Override
-    public CompoundTag save(CompoundTag tag, HolderLookup.Provider registries) {
+    public CompoundTag save(CompoundTag tag) {
         ListTag list = new ListTag();
         for (Map.Entry<Item, Entry> mapEntry : entries.entrySet()) {
             CompoundTag entryTag = new CompoundTag();

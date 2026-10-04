@@ -3,20 +3,20 @@ package com.soloeconomy.registry;
 import com.soloeconomy.SoloEconomy;
 import com.soloeconomy.menu.MarketMenu;
 
-import net.minecraft.core.registries.Registries;
 import net.minecraft.world.inventory.MenuType;
-import net.neoforged.bus.api.IEventBus;
-import net.neoforged.neoforge.common.extensions.IMenuTypeExtension;
-import net.neoforged.neoforge.registries.DeferredHolder;
-import net.neoforged.neoforge.registries.DeferredRegister;
+import net.minecraftforge.common.extensions.IForgeMenuType;
+import net.minecraftforge.eventbus.api.IEventBus;
+import net.minecraftforge.registries.DeferredRegister;
+import net.minecraftforge.registries.ForgeRegistries;
+import net.minecraftforge.registries.RegistryObject;
 
 public final class ModMenus {
 
     public static final DeferredRegister<MenuType<?>> MENUS =
-            DeferredRegister.create(Registries.MENU, SoloEconomy.MOD_ID);
+            DeferredRegister.create(ForgeRegistries.MENU_TYPES, SoloEconomy.MOD_ID);
 
-    public static final DeferredHolder<MenuType<?>, MenuType<MarketMenu>> MARKET =
-            MENUS.register("market", () -> IMenuTypeExtension.create(
+    public static final RegistryObject<MenuType<MarketMenu>> MARKET =
+            MENUS.register("market", () -> IForgeMenuType.create(
                     (windowId, inventory, buffer) -> new MarketMenu(windowId, inventory)));
 
     private ModMenus() {

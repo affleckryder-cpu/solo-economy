@@ -107,7 +107,7 @@
         "minecraft:nautilus_shell", "minecraft:heart_of_the_sea",
         "minecraft:echo_shard", "minecraft:shulker_shell", "minecraft:nether_star",
         "minecraft:totem_of_undying", "minecraft:trident", "minecraft:elytra",
-        "minecraft:saddle", "minecraft:name_tag", "minecraft:sniffer_egg", "minecraft:heavy_core"
+        "minecraft:saddle", "minecraft:name_tag", "minecraft:sniffer_egg"
       ]
     },
     {
@@ -122,8 +122,7 @@
         "minecraft:glowstone_dust", "minecraft:redstone", "minecraft:nether_wart",
         "minecraft:glass_bottle", "minecraft:phantom_membrane", "minecraft:rabbit_foot",
         "minecraft:glistering_melon_slice", "minecraft:golden_carrot",
-        "minecraft:experience_bottle", "minecraft:dragon_breath",
-        "minecraft:breeze_rod", "minecraft:wind_charge"
+        "minecraft:experience_bottle", "minecraft:dragon_breath"
       ]
     },
     {

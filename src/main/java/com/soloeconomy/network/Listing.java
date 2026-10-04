@@ -1,9 +1,7 @@
 package com.soloeconomy.network;
 
-import net.minecraft.core.registries.Registries;
-import net.minecraft.network.RegistryFriendlyByteBuf;
-import net.minecraft.network.codec.ByteBufCodecs;
-import net.minecraft.network.codec.StreamCodec;
+import net.minecraft.core.registries.BuiltInRegistries;
+import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.world.item.Item;
 
 /**
@@ -15,11 +13,16 @@ import net.minecraft.world.item.Item;
  */
 public record Listing(Item item, float buyPrice, float sellPrice, float stockRatio, boolean locked) {
 
-    public static final StreamCodec<RegistryFriendlyByteBuf, Listing> STREAM_CODEC = StreamCodec.composite(
-            ByteBufCodecs.registry(Registries.ITEM), Listing::item,
-            ByteBufCodecs.FLOAT, Listing::buyPrice,
-            ByteBufCodecs.FLOAT, Listing::sellPrice,
-            ByteBufCodecs.FLOAT, Listing::stockRatio,
-            ByteBufCodecs.BOOL, Listing::locked,
-            Listing::new);
+    public void encode(FriendlyByteBuf buf) {
+        buf.writeId(BuiltInRegistries.ITEM, item);
+        buf.writeFloat(buyPrice);
+        buf.writeFloat(sellPrice);
+        buf.writeFloat(stockRatio);
+        buf.writeBoolean(locked);
+    }
+
+    public static Listing decode(FriendlyByteBuf buf) {
+        return new Listing(buf.readById(BuiltInRegistries.ITEM), buf.readFloat(), buf.readFloat(), buf.readFloat(),
+                buf.readBoolean());
+    }
 }

@@ -1,6 +1,6 @@
 package com.soloeconomy.config;
 
-import net.neoforged.neoforge.common.ModConfigSpec;
+import net.minecraftforge.common.ForgeConfigSpec;
 
 import org.apache.commons.lang3.tuple.Pair;
 
@@ -12,28 +12,28 @@ import java.util.List;
  */
 public final class EconomyConfig {
 
-    public static final ModConfigSpec SPEC;
+    public static final ForgeConfigSpec SPEC;
     public static final EconomyConfig INSTANCE;
 
-    public final ModConfigSpec.DoubleValue spread;
-    public final ModConfigSpec.DoubleValue craftMarkup;
-    public final ModConfigSpec.DoubleValue elasticity;
-    public final ModConfigSpec.DoubleValue minPriceMultiplier;
-    public final ModConfigSpec.DoubleValue maxPriceMultiplier;
-    public final ModConfigSpec.IntValue marketDepth;
-    public final ModConfigSpec.DoubleValue depthPriceExponent;
-    public final ModConfigSpec.DoubleValue recoveryPerDay;
-    public final ModConfigSpec.BooleanValue deriveUnpricedItems;
-    public final ModConfigSpec.IntValue startingBalance;
-    public final ModConfigSpec.DoubleValue brokerSpreadMultiplier;
-    public final ModConfigSpec.IntValue configVersion;
-    public final ModConfigSpec.ConfigValue<List<? extends String>> priceOverrides;
-    public final ModConfigSpec.DoubleValue priceMultiplier;
-    public final ModConfigSpec.BooleanValue requireDiscovery;
-    public final ModConfigSpec.BooleanValue openMarket;
-    public final ModConfigSpec.BooleanValue modRecipes;
+    public final ForgeConfigSpec.DoubleValue spread;
+    public final ForgeConfigSpec.DoubleValue craftMarkup;
+    public final ForgeConfigSpec.DoubleValue elasticity;
+    public final ForgeConfigSpec.DoubleValue minPriceMultiplier;
+    public final ForgeConfigSpec.DoubleValue maxPriceMultiplier;
+    public final ForgeConfigSpec.IntValue marketDepth;
+    public final ForgeConfigSpec.DoubleValue depthPriceExponent;
+    public final ForgeConfigSpec.DoubleValue recoveryPerDay;
+    public final ForgeConfigSpec.BooleanValue deriveUnpricedItems;
+    public final ForgeConfigSpec.IntValue startingBalance;
+    public final ForgeConfigSpec.DoubleValue brokerSpreadMultiplier;
+    public final ForgeConfigSpec.IntValue configVersion;
+    public final ForgeConfigSpec.ConfigValue<List<? extends String>> priceOverrides;
+    public final ForgeConfigSpec.DoubleValue priceMultiplier;
+    public final ForgeConfigSpec.BooleanValue requireDiscovery;
+    public final ForgeConfigSpec.BooleanValue openMarket;
+    public final ForgeConfigSpec.BooleanValue modRecipes;
 
-    private EconomyConfig(ModConfigSpec.Builder builder) {
+    private EconomyConfig(ForgeConfigSpec.Builder builder) {
         builder.comment("Solo Economy - market tuning").push("market");
 
         spread = builder
@@ -135,12 +135,11 @@ public final class EconomyConfig {
 
         priceOverrides = builder
                 .comment("Base price changes, as \"item_id=emeralds\". These win over base_prices.json.",
-                        "This file applies to every world; copy it into a world's serverconfig folder to",
-                        "give that world its own prices.",
+                        "This file belongs to one world. Put a copy in defaultconfigs to start new worlds with it.",
                         "Easiest to change in game: /soloeconomy price <item> set <emeralds>, or ... reset.",
                         "Edits made here by hand apply on /reload. Price raw materials where you can: setting a",
                         "crafted item gives it its own price, detached from its ingredients.")
-                .defineListAllowEmpty("priceOverrides", List.of(), () -> "minecraft:diamond=20",
+                .defineListAllowEmpty(List.of("priceOverrides"), List::of,
                         o -> o instanceof String s && s.indexOf('=') > 0);
 
         builder.pop();
@@ -178,7 +177,7 @@ public final class EconomyConfig {
     }
 
     static {
-        Pair<EconomyConfig, ModConfigSpec> pair = new ModConfigSpec.Builder().configure(EconomyConfig::new);
+        Pair<EconomyConfig, ForgeConfigSpec> pair = new ForgeConfigSpec.Builder().configure(EconomyConfig::new);
         INSTANCE = pair.getLeft();
         SPEC = pair.getRight();
     }

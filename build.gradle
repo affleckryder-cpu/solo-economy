@@ -1,35 +1,36 @@
 plugins {
     id 'java'
-    id 'net.neoforged.moddev' version '2.0.78'
+    id 'net.neoforged.moddev.legacyforge' version '2.0.78'
 }
 
 version = mod_version
 group = mod_group_id
+base.archivesName = "${mod_id}-forge-${minecraft_version}"
 
-java.toolchain.languageVersion = JavaLanguageVersion.of(21)
+java.toolchain.languageVersion = JavaLanguageVersion.of(17)
 
-neoForge {
-    version = project.neo_version
+legacyForge {
+    version = project.forge_version
 
     parchment {
-        mappingsVersion = '2024.11.17'
-        minecraftVersion = '1.21.1'
+        mappingsVersion = '2023.09.03'
+        minecraftVersion = '1.20.1'
     }
 
     runs {
         client {
             client()
-            systemProperty 'neoforge.enabledGameTestNamespaces', mod_id
+            systemProperty 'forge.enabledGameTestNamespaces', mod_id
         }
         server {
             server()
             programArgument '--nogui'
-            systemProperty 'neoforge.enabledGameTestNamespaces', mod_id
+            systemProperty 'forge.enabledGameTestNamespaces', mod_id
         }
         // Runs every @GameTest in the mod headlessly, then exits non-zero if any failed.
         gameTestServer {
             type = "gameTestServer"
-            systemProperty 'neoforge.enabledGameTestNamespaces', mod_id
+            systemProperty 'forge.enabledGameTestNamespaces', mod_id
         }
         configureEach {
             gameDirectory = file('run')
@@ -46,25 +47,13 @@ neoForge {
 
 repositories {
     mavenCentral()
-    exclusiveContent {
-        forRepository { maven { url = "https://api.modrinth.com/maven" } }
-        filter { includeGroup "maven.modrinth" }
-    }
-}
-
-// Test against Create without shipping it: ./gradlew runClient -PwithCreate
-dependencies {
-    if (project.hasProperty('withCreate')) {
-        runtimeOnly "maven.modrinth:create:88L641Un" // 6.0.8 for 1.21.1, the newest that runs on NeoForge 21.1.209
-    }
 }
 
 var generateModMetadata = tasks.register('generateModMetadata', ProcessResources) {
     var replaceProperties = [
             minecraft_version      : minecraft_version,
             minecraft_version_range: minecraft_version_range,
-            neo_version            : neo_version,
-            neo_version_range      : neo_version_range,
+            forge_version_range    : forge_version_range,
             loader_version_range   : loader_version_range,
             mod_id                 : mod_id,
             mod_name               : mod_name,
@@ -79,11 +68,11 @@ var generateModMetadata = tasks.register('generateModMetadata', ProcessResources
 }
 
 sourceSets.main.resources.srcDir generateModMetadata
-neoForge.ideSyncTask generateModMetadata
+legacyForge.ideSyncTask generateModMetadata
 
 tasks.withType(JavaCompile).configureEach {
     options.encoding = 'UTF-8'
-    options.release = 21
+    options.release = 17
 }
 
 tasks.named('jar', Jar) {

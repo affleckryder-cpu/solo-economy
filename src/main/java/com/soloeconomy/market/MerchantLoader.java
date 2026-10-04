@@ -31,7 +31,7 @@ import java.util.Map;
 public class MerchantLoader extends SimplePreparableReloadListener<List<MerchantLoader.Definition>> {
 
     public static final ResourceLocation FILE =
-            ResourceLocation.fromNamespaceAndPath(SoloEconomy.MOD_ID, "merchants.json");
+            new ResourceLocation(SoloEconomy.MOD_ID, "merchants.json");
 
     private static final Gson GSON = new Gson();
 

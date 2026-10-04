@@ -7,14 +7,15 @@ import com.soloeconomy.market.MarketData;
 import com.soloeconomy.menu.MarketMenu;
 
 import net.minecraft.ChatFormatting;
+import net.minecraft.nbt.CompoundTag;
 import net.minecraft.network.chat.Component;
+import net.minecraft.network.protocol.game.ClientboundContainerSetSlotPacket;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.util.Mth;
 import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
-import net.neoforged.neoforge.network.handling.IPayloadContext;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -41,10 +42,7 @@ public final class ServerMarketHandler {
     // Catalogue browsing
     // ------------------------------------------------------------------
 
-    public static void handleQuery(MarketQueryPayload payload, IPayloadContext context) {
-        if (!(context.player() instanceof ServerPlayer player)) {
-            return;
-        }
+    public static void handleQuery(MarketQueryPayload payload, ServerPlayer player) {
         if (!(player.containerMenu instanceof MarketMenu menu)) {
             return;
         }
@@ -85,7 +83,7 @@ public final class ServerMarketHandler {
         for (MarketCatalog.Merchant m : catalog.merchants()) {
             merchants.add(new MarketListingsPayload.Merchant(m.id(), m.icon()));
         }
-        context.reply(new MarketListingsPayload(merchants, listings, carried, (float) spread,
+        ModNetwork.sendTo(player, new MarketListingsPayload(merchants, listings, carried, (float) spread,
                 EconomyAccount.balance(player)));
     }
 
@@ -102,10 +100,7 @@ public final class ServerMarketHandler {
      * has - emeralds to spend, goods to sell - so "All" comes back as a concrete number rather
      * than leaving the UI to guess.
      */
-    public static void handleQuoteRequest(QuoteRequestPayload payload, IPayloadContext context) {
-        if (!(context.player() instanceof ServerPlayer player)) {
-            return;
-        }
+    public static void handleQuoteRequest(QuoteRequestPayload payload, ServerPlayer player) {
         if (!(player.containerMenu instanceof MarketMenu menu)) {
             return;
         }
@@ -134,7 +129,7 @@ public final class ServerMarketHandler {
                 ? data.quoteBuy(item, buyCount, gameTime, spread).cents()
                 : 0L;
 
-        context.reply(new QuotePayload(item, sellCount, sellTotal, buyCount, buyTotal));
+        ModNetwork.sendTo(player, new QuotePayload(item, sellCount, sellTotal, buyCount, buyTotal));
     }
 
     private static boolean matchesSearch(Item item, String lowerSearch) {
@@ -148,10 +143,7 @@ public final class ServerMarketHandler {
     // Trading
     // ------------------------------------------------------------------
 
-    public static void handleTrade(TradePayload payload, IPayloadContext context) {
-        if (!(context.player() instanceof ServerPlayer player)) {
-            return;
-        }
+    public static void handleTrade(TradePayload payload, ServerPlayer player) {
         if (!(player.containerMenu instanceof MarketMenu menu) || !menu.stillValid(player)) {
             return;
         }
@@ -188,6 +180,7 @@ public final class ServerMarketHandler {
             sell(player, data, item, requested, gameTime, spread);
         }
 
+        syncInventory(player);
         EconomyAccount.sync(player);
     }
 
@@ -253,10 +246,7 @@ public final class ServerMarketHandler {
     // Emerald deposit / withdrawal, always 1:1
     // ------------------------------------------------------------------
 
-    public static void handleTransfer(TransferPayload payload, IPayloadContext context) {
-        if (!(context.player() instanceof ServerPlayer player)) {
-            return;
-        }
+    public static void handleTransfer(TransferPayload payload, ServerPlayer player) {
         if (!(player.containerMenu instanceof MarketMenu menu) || !menu.stillValid(player)) {
             return;
         }
@@ -286,6 +276,7 @@ public final class ServerMarketHandler {
             feedback(player, Component.translatable("message.soloeconomy.withdrew", amount), false);
         }
 
+        syncInventory(player);
         EconomyAccount.sync(player);
     }
 
@@ -294,12 +285,17 @@ public final class ServerMarketHandler {
     // ------------------------------------------------------------------
 
     /**
-     * Items carrying custom components are never tradeable. That one rule covers enchanted gear,
-     * renamed items, damaged tools and - importantly - shulker boxes with things inside, any of
-     * which would otherwise be bought or sold at the price of a plain one.
+     * Items carrying NBT are never tradeable. That one rule covers enchanted gear, renamed items,
+     * damaged tools and - importantly - shulker boxes with things inside, any of which would
+     * otherwise be bought or sold at the price of a plain one. A tool repaired back to full keeps
+     * a bare "Damage: 0" tag, which is the one tag that doesn't count.
      */
     public static boolean isTradeableStack(ItemStack stack) {
-        return !stack.isEmpty() && stack.getComponentsPatch().isEmpty() && !stack.isDamaged();
+        if (stack.isEmpty() || stack.isDamaged()) {
+            return false;
+        }
+        CompoundTag tag = stack.getTag();
+        return tag == null || tag.isEmpty() || (tag.size() == 1 && tag.contains(ItemStack.TAG_DAMAGE));
     }
 
     private static int countInInventory(Inventory inventory, Item item) {
@@ -344,6 +340,16 @@ public final class ServerMarketHandler {
             remaining -= size;
         }
         player.containerMenu.broadcastChanges();
+    }
+
+    /**
+     * The market menu has no slots, so nothing else tells the client that its inventory changed.
+     * Container id -2 writes straight into the player's inventory, whatever screen is open.
+     */
+    private static void syncInventory(ServerPlayer player) {
+        for (int slot = 0; slot < TRADEABLE_SLOTS; slot++) {
+            player.connection.send(new ClientboundContainerSetSlotPacket(-2, 0, slot, player.getInventory().getItem(slot)));
+        }
     }
 
     private static void feedback(ServerPlayer player, Component message, boolean problem) {

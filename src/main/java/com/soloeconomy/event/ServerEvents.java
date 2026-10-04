@@ -7,19 +7,18 @@ import com.soloeconomy.market.BasePriceLoader;
 import com.soloeconomy.market.EconomyAccount;
 import com.soloeconomy.market.MarketCatalog;
 import com.soloeconomy.market.MerchantLoader;
-import com.soloeconomy.registry.ModAttachments;
 
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.item.Item;
-import net.neoforged.bus.api.SubscribeEvent;
-import net.neoforged.fml.common.EventBusSubscriber;
-import net.neoforged.neoforge.event.AddReloadListenerEvent;
-import net.neoforged.neoforge.event.OnDatapackSyncEvent;
-import net.neoforged.neoforge.event.RegisterCommandsEvent;
-import net.neoforged.neoforge.event.entity.player.PlayerEvent;
-import net.neoforged.neoforge.event.server.ServerStartedEvent;
-import net.neoforged.neoforge.event.server.ServerStoppedEvent;
+import net.minecraftforge.eventbus.api.SubscribeEvent;
+import net.minecraftforge.fml.common.Mod;
+import net.minecraftforge.event.AddReloadListenerEvent;
+import net.minecraftforge.event.OnDatapackSyncEvent;
+import net.minecraftforge.event.RegisterCommandsEvent;
+import net.minecraftforge.event.entity.player.PlayerEvent;
+import net.minecraftforge.event.server.ServerStartedEvent;
+import net.minecraftforge.event.server.ServerStoppedEvent;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -28,7 +27,7 @@ import java.util.Map;
  * Server lifecycle wiring: keep the price book in step with the loaded datapacks and recipes,
  * and keep every client's balance display honest.
  */
-@EventBusSubscriber(modid = SoloEconomy.MOD_ID)
+@Mod.EventBusSubscriber(modid = SoloEconomy.MOD_ID)
 public final class ServerEvents {
 
     private ServerEvents() {
@@ -69,13 +68,7 @@ public final class ServerEvents {
         if (!(event.getEntity() instanceof ServerPlayer player)) {
             return;
         }
-        if (player.hasData(ModAttachments.LEGACY_BALANCE.get())) {
-            // 0.1.0 stored whole emeralds. Convert once, then drop the old attachment.
-            long emeralds = player.getData(ModAttachments.LEGACY_BALANCE.get());
-            player.removeData(ModAttachments.LEGACY_BALANCE.get());
-            EconomyAccount.setBalance(player, emeralds * EconomyAccount.CENTS_PER_EMERALD);
-        } else if (!player.hasData(ModAttachments.BALANCE_CENTS.get())) {
-            // An absent attachment means this player has never had an account before.
+        if (!EconomyAccount.hasAccount(player)) {
             EconomyAccount.setBalance(player,
                     EconomyConfig.INSTANCE.startingBalance.get() * EconomyAccount.CENTS_PER_EMERALD);
         } else {

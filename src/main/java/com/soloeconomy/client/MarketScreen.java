@@ -5,6 +5,7 @@ import com.soloeconomy.menu.MarketMenu;
 import com.soloeconomy.network.Listing;
 import com.soloeconomy.network.MarketListingsPayload;
 import com.soloeconomy.network.MarketQueryPayload;
+import com.soloeconomy.network.ModNetwork;
 import com.soloeconomy.network.QuotePayload;
 import com.soloeconomy.network.QuoteRequestPayload;
 import com.soloeconomy.network.ServerMarketHandler;
@@ -24,7 +25,6 @@ import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
-import net.neoforged.neoforge.network.PacketDistributor;
 
 import org.lwjgl.glfw.GLFW;
 
@@ -42,7 +42,7 @@ import java.util.List;
  */
 public class MarketScreen extends AbstractContainerScreen<MarketMenu> {
 
-    private static final ResourceLocation PANEL = ResourceLocation.withDefaultNamespace("textures/gui/container/villager.png");
+    private static final ResourceLocation PANEL = new ResourceLocation("textures/gui/container/villager2.png");
 
     private static final int WIDTH = 316;
     private static final int HEIGHT = 230;
@@ -161,7 +161,7 @@ public class MarketScreen extends AbstractContainerScreen<MarketMenu> {
 
     public void requestRefresh() {
         if (!atBank()) {
-            PacketDistributor.sendToServer(new MarketQueryPayload(search, carryOnly, merchant));
+            ModNetwork.CHANNEL.sendToServer(new MarketQueryPayload(search, carryOnly, merchant));
         }
     }
 
@@ -223,9 +223,9 @@ public class MarketScreen extends AbstractContainerScreen<MarketMenu> {
     private void act(boolean right) {
         if (atBank()) {
             int amount = quantity() == ServerMarketHandler.COUNT_MAX ? -1 : quantity();
-            PacketDistributor.sendToServer(new TransferPayload(amount, !right));
+            ModNetwork.CHANNEL.sendToServer(new TransferPayload(amount, !right));
         } else if (selected != null) {
-            PacketDistributor.sendToServer(new TradePayload(selected.listing().item(), quantity(), right));
+            ModNetwork.CHANNEL.sendToServer(new TradePayload(selected.listing().item(), quantity(), right));
         }
     }
 
@@ -235,7 +235,7 @@ public class MarketScreen extends AbstractContainerScreen<MarketMenu> {
         }
         quoteRequestedFor = item;
         quoteRequestedQuantity = quantity();
-        PacketDistributor.sendToServer(new QuoteRequestPayload(item, quantity()));
+        ModNetwork.CHANNEL.sendToServer(new QuoteRequestPayload(item, quantity()));
     }
 
     private int countHeld(Item item) {
@@ -312,7 +312,7 @@ public class MarketScreen extends AbstractContainerScreen<MarketMenu> {
             ItemStack stack = minecraft.player.getInventory().items.get(slot);
             if (sellable(stack) != null) {
                 if (hasShiftDown()) {
-                    PacketDistributor.sendToServer(new TradePayload(stack.getItem(), ServerMarketHandler.COUNT_MAX, false));
+                    ModNetwork.CHANNEL.sendToServer(new TradePayload(stack.getItem(), ServerMarketHandler.COUNT_MAX, false));
                 } else {
                     // Search for it: that lists every merchant who deals in it, and selects it there.
                     pendingSelect = stack.getItem();
@@ -373,12 +373,12 @@ public class MarketScreen extends AbstractContainerScreen<MarketMenu> {
     }
 
     @Override
-    public boolean mouseScrolled(double mx, double my, double scrollX, double scrollY) {
+    public boolean mouseScrolled(double mx, double my, double scrollY) {
         if (inside(mx, my, leftPos + LIST_X, topPos + BOX_Y, LIST_WIDTH, BOX_HEIGHT)) {
             scrollRow = Mth.clamp(scrollRow + (scrollY > 0 ? -1 : 1), 0, maxScroll());
             return true;
         }
-        return super.mouseScrolled(mx, my, scrollX, scrollY);
+        return super.mouseScrolled(mx, my, scrollY);
     }
 
     @Override
@@ -413,6 +413,7 @@ public class MarketScreen extends AbstractContainerScreen<MarketMenu> {
     @Override
     public void render(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
         updateButtons();
+        renderBackground(graphics);
         super.render(graphics, mouseX, mouseY, partialTick);
         renderHoverTooltip(graphics, mouseX, mouseY);
     }
