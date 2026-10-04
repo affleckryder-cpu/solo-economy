@@ -1,3 +1,16 @@
+# Solo Economy 0.3.5 for Forge 1.20.1
+
+**Minecraft 1.20.1 · Forge 47 or newer · Java 17**
+
+## New art
+
+- **The Market Stall is an actual stall now.** A wooden counter under a green-and-cream striped awning, with a ledger, a few coins and an emerald on top, instead of a plain crate.
+- **The Broker dresses the part:** a green waistcoat with gold buttons, a belt with a coin pouch, and a green cap.
+
+Stalls you've already placed update on their own.
+
+---
+
 # Solo Economy 0.3.4 for Forge 1.20.1
 
 **Minecraft 1.20.1 · Forge 47 or newer · Java 17**

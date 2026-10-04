@@ -24,7 +24,9 @@ public final class ModBlocks {
                     .mapColor(MapColor.WOOD)
                     .strength(2.5F)
                     .sound(SoundType.WOOD)
-                    .ignitedByLava()));
+                    .ignitedByLava()
+                    // The model is a counter under an awning, not a full cube: don't hide neighbours' faces.
+                    .noOcclusion()));
 
     public static final RegistryObject<Item> MARKET_STALL_ITEM = ITEMS.register("market_stall",
             () -> new BlockItem(MARKET_STALL.get(), new Item.Properties()));

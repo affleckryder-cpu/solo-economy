@@ -1,8 +1,97 @@
 {
-  "parent": "minecraft:block/orientable",
+  "parent": "minecraft:block/block",
   "textures": {
-    "top": "soloeconomy:block/market_stall_top",
+    "particle": "soloeconomy:block/market_stall_side",
     "front": "soloeconomy:block/market_stall_front",
-    "side": "soloeconomy:block/market_stall_side"
-  }
+    "side": "soloeconomy:block/market_stall_side",
+    "top": "soloeconomy:block/market_stall_top",
+    "awning": "soloeconomy:block/market_stall_awning",
+    "awning_side": "soloeconomy:block/market_stall_awning_side",
+    "awning_under": "soloeconomy:block/market_stall_awning_under",
+    "gem": "minecraft:block/emerald_block"
+  },
+  "elements": [
+    {
+      "name": "counter",
+      "from": [0, 0, 0],
+      "to": [16, 9, 16],
+      "faces": {
+        "north": { "uv": [0, 7, 16, 16], "texture": "#front", "cullface": "north" },
+        "south": { "uv": [0, 7, 16, 16], "texture": "#side", "cullface": "south" },
+        "east":  { "uv": [0, 7, 16, 16], "texture": "#side", "cullface": "east" },
+        "west":  { "uv": [0, 7, 16, 16], "texture": "#side", "cullface": "west" },
+        "up":    { "uv": [0, 0, 16, 16], "texture": "#top" },
+        "down":  { "uv": [0, 0, 16, 16], "texture": "#side", "cullface": "down" }
+      }
+    },
+    {
+      "name": "post_nw",
+      "from": [0, 9, 0],
+      "to": [2, 13, 2],
+      "faces": {
+        "north": { "uv": [0, 0, 2, 4], "texture": "#side", "cullface": "north" },
+        "south": { "uv": [0, 0, 2, 4], "texture": "#side" },
+        "east":  { "uv": [0, 0, 2, 4], "texture": "#side" },
+        "west":  { "uv": [0, 0, 2, 4], "texture": "#side", "cullface": "west" }
+      }
+    },
+    {
+      "name": "post_ne",
+      "from": [14, 9, 0],
+      "to": [16, 13, 2],
+      "faces": {
+        "north": { "uv": [14, 0, 16, 4], "texture": "#side", "cullface": "north" },
+        "south": { "uv": [14, 0, 16, 4], "texture": "#side" },
+        "east":  { "uv": [14, 0, 16, 4], "texture": "#side", "cullface": "east" },
+        "west":  { "uv": [14, 0, 16, 4], "texture": "#side" }
+      }
+    },
+    {
+      "name": "post_sw",
+      "from": [0, 9, 14],
+      "to": [2, 13, 16],
+      "faces": {
+        "north": { "uv": [0, 0, 2, 4], "texture": "#side" },
+        "south": { "uv": [0, 0, 2, 4], "texture": "#side", "cullface": "south" },
+        "east":  { "uv": [0, 0, 2, 4], "texture": "#side" },
+        "west":  { "uv": [0, 0, 2, 4], "texture": "#side", "cullface": "west" }
+      }
+    },
+    {
+      "name": "post_se",
+      "from": [14, 9, 14],
+      "to": [16, 13, 16],
+      "faces": {
+        "north": { "uv": [14, 0, 16, 4], "texture": "#side" },
+        "south": { "uv": [14, 0, 16, 4], "texture": "#side", "cullface": "south" },
+        "east":  { "uv": [14, 0, 16, 4], "texture": "#side", "cullface": "east" },
+        "west":  { "uv": [14, 0, 16, 4], "texture": "#side" }
+      }
+    },
+    {
+      "name": "awning",
+      "from": [0, 13, 0],
+      "to": [16, 16, 16],
+      "faces": {
+        "north": { "uv": [0, 0, 16, 3], "texture": "#awning_side", "cullface": "north" },
+        "south": { "uv": [0, 0, 16, 3], "texture": "#awning_side", "cullface": "south" },
+        "east":  { "uv": [0, 0, 16, 3], "texture": "#awning_side", "cullface": "east" },
+        "west":  { "uv": [0, 0, 16, 3], "texture": "#awning_side", "cullface": "west" },
+        "up":    { "uv": [0, 0, 16, 16], "texture": "#awning", "cullface": "up" },
+        "down":  { "uv": [0, 0, 16, 16], "texture": "#awning_under" }
+      }
+    },
+    {
+      "name": "emerald",
+      "from": [9, 9, 4],
+      "to": [12, 11, 7],
+      "faces": {
+        "north": { "uv": [3, 3, 6, 5], "texture": "#gem" },
+        "south": { "uv": [3, 3, 6, 5], "texture": "#gem" },
+        "east":  { "uv": [3, 3, 6, 5], "texture": "#gem" },
+        "west":  { "uv": [3, 3, 6, 5], "texture": "#gem" },
+        "up":    { "uv": [3, 3, 6, 6], "texture": "#gem" }
+      }
+    }
+  ]
 }
