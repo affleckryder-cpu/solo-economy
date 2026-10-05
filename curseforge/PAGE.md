@@ -47,8 +47,8 @@ If you want something shorter:
 
 | Setting | Recommendation |
 | --- | --- |
-| **Source code link** | Leave empty for now. The project has no public repo yet. |
-| **Issues link** | Leave empty. Comments are on. |
+| **Source code link** | `https://github.com/affleckryder-cpu/solo-economy` |
+| **Issues link** | `https://github.com/affleckryder-cpu/solo-economy/issues` |
 | **Wiki link** | Leave empty. |
 | **Allow modpack distribution** | On. Pack makers are an audience the description speaks to. |
 
