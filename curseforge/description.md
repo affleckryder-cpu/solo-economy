@@ -21,7 +21,7 @@ Multiplayer servers get an economy for free: other players. Solo worlds don't, a
 A block that opens the market. It works on its own, and a villager can take it as a job site.
 
 ### 🧑‍💼 Broker villager
-A new villager profession. A Broker working a stall cuts that stall's trading fees by a quarter, so hiring one is a real upgrade rather than decoration.
+A new villager profession. A Broker working a stall cuts that stall's trading fees by a quarter, and brings **daily deals**: three goods with no fee to buy and three with no fee to sell, changing every in-game day.
 
 ### 💎 Emerald account
 Emeralds are the currency, kept as a balance rather than in your inventory, so a big sale never buries you in stacks. **Deposit** and **Withdraw** at any stall, always 1:1. Your balance is shown in the corner of your screen.
@@ -83,6 +83,7 @@ About 225 raw materials have set prices. Everything else is priced from the ingr
 | `priceMultiplier` | 1.0 | Scales every default price. Raise it to make emeralds go less far |
 | `requireDiscovery` | true | Players can only buy items they've carried to or sold at a stall |
 | `openMarket` | false | Adds a Store merchant that trades every item with a price, modded ones included |
+| `brokerDeals` | 3 | Fee-free goods to buy, and to sell, each day at a stall with a Broker |
 | `modRecipes` | false | Price items from other mods' recipes too (Create machines, modded workbenches) |
 | `priceOverrides` | [] | Per-item prices, easiest set with the command below |
 

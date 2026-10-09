@@ -1,5 +1,6 @@
 package com.soloeconomy.client;
 
+import com.soloeconomy.market.BrokerDeals;
 import com.soloeconomy.market.EconomyAccount;
 import com.soloeconomy.menu.MarketMenu;
 import com.soloeconomy.network.Listing;
@@ -51,7 +52,7 @@ public class MarketScreen extends AbstractContainerScreen<MarketMenu> {
     private static final int SIDE_WIDTH = 88;
     private static final int BOX_Y = 24;
     private static final int BOX_HEIGHT = 176;
-    private static final int ENTRY_HEIGHT = 13;
+    private static final int COLOR_DEAL = 0xFFFFD83D;
 
     private static final int LIST_X = 98;
     private static final int LIST_WIDTH = 212;
@@ -173,7 +174,9 @@ public class MarketScreen extends AbstractContainerScreen<MarketMenu> {
     private void rebuildRows() {
         List<Entry> newEntries = new ArrayList<>();
         for (MarketListingsPayload.Merchant m : ClientMarketState.merchants()) {
-            newEntries.add(new Entry(m.id(), new ItemStack(m.icon()), sidebarName(merchantName(m.id()))));
+            Entry entry = new Entry(m.id(), new ItemStack(m.icon()), sidebarName(merchantName(m.id())));
+            // Today's deals lead the list; the server sends them last so the default merchant stays first.
+            newEntries.add(BrokerDeals.MERCHANT_ID.equals(m.id()) ? 0 : newEntries.size(), entry);
         }
         newEntries.add(new Entry(BANK, new ItemStack(Items.EMERALD), sidebarName(Component.translatable("gui.soloeconomy.bank"))));
         entries = newEntries;
@@ -265,11 +268,35 @@ public class MarketScreen extends AbstractContainerScreen<MarketMenu> {
         return index < rows.size() ? rows.get(index) : null;
     }
 
-    private int entryAt(double mx, double my) {
-        if (!inside(mx, my, leftPos + SIDE_X + 2, topPos + BOX_Y + 2, SIDE_WIDTH - 4, entries.size() * ENTRY_HEIGHT)) {
-            return -1;
+    // The sidebar is three groups: today's deals on top (when a Broker works the stall), the
+    // merchants, and the bank pinned to the bottom. A divider sits between each.
+    private static final int DIVIDER = 5;
+
+    private boolean hasDeals() {
+        return !entries.isEmpty() && BrokerDeals.MERCHANT_ID.equals(entries.get(0).id());
+    }
+
+    /** As tall as fits, so a long merchant list (open market, datapacks) still shows the bank. */
+    private int entryHeight() {
+        int room = BOX_HEIGHT - 4 - DIVIDER - (hasDeals() ? DIVIDER : 0);
+        return Mth.clamp(room / Math.max(1, entries.size()), 9, 13);
+    }
+
+    /** Top of entry {@code i}, relative to the screen. The bank is always last and sits at the bottom. */
+    private int entryY(int i) {
+        if (i == entries.size() - 1) {
+            return topPos + BOX_Y + BOX_HEIGHT - 2 - entryHeight();
         }
-        return (int) (my - topPos - BOX_Y - 2) / ENTRY_HEIGHT;
+        return topPos + BOX_Y + 2 + i * entryHeight() + (hasDeals() && i > 0 ? DIVIDER : 0);
+    }
+
+    private int entryAt(double mx, double my) {
+        for (int i = 0; i < entries.size(); i++) {
+            if (inside(mx, my, leftPos + SIDE_X + 2, entryY(i), SIDE_WIDTH - 4, entryHeight())) {
+                return i;
+            }
+        }
+        return -1;
     }
 
     private int chipAt(double mx, double my) {
@@ -443,23 +470,34 @@ public class MarketScreen extends AbstractContainerScreen<MarketMenu> {
 
     private void renderSidebar(GuiGraphics g, int mouseX, int mouseY) {
         int hovered = entryAt(mouseX, mouseY);
+        int h = entryHeight();
+        int x = leftPos + SIDE_X + 2;
         for (int i = 0; i < entries.size(); i++) {
             Entry entry = entries.get(i);
-            int x = leftPos + SIDE_X + 2;
-            int y = topPos + BOX_Y + 2 + i * ENTRY_HEIGHT;
+            int y = entryY(i);
+            boolean deals = i == 0 && hasDeals();
             boolean chosen = entry.id().equals(merchant) && search.isEmpty();
             if (chosen) {
-                g.fill(x, y, x + SIDE_WIDTH - 4, y + ENTRY_HEIGHT, 0x30FFFFFF);
-                g.fill(x, y, x + 2, y + ENTRY_HEIGHT, COLOR_ACCENT);
+                g.fill(x, y, x + SIDE_WIDTH - 4, y + h, 0x30FFFFFF);
+                g.fill(x, y, x + 2, y + h, deals ? COLOR_DEAL : COLOR_ACCENT);
             } else if (i == hovered) {
-                g.fill(x, y, x + SIDE_WIDTH - 4, y + ENTRY_HEIGHT, 0x14FFFFFF);
+                g.fill(x, y, x + SIDE_WIDTH - 4, y + h, 0x14FFFFFF);
+            } else if (deals) {
+                g.fill(x, y, x + SIDE_WIDTH - 4, y + h, 0x28FFD83D); // a gold wash, so it's hard to miss
             }
             g.pose().pushPose();
-            g.pose().translate(x + 5, y + 1, 0);
+            g.pose().translate(x + 5, y + (h - 12) / 2.0F, 0);
             g.pose().scale(0.75F, 0.75F, 1.0F);
             g.renderItem(entry.icon(), 0, 0);
             g.pose().popPose();
-            g.drawString(font, entry.name(), x + 20, y + 3, chosen ? COLOR_TEXT : 0xFFC8C8C8, true);
+            g.drawString(font, entry.name(), x + 20, y + (h - 8) / 2, deals ? COLOR_DEAL : chosen ? COLOR_TEXT : 0xFFC8C8C8, true);
+        }
+        if (hasDeals()) {
+            g.fill(x + 2, entryY(1) - 3, x + SIDE_WIDTH - 6, entryY(1) - 2, 0xFF444444);
+        }
+        if (!entries.isEmpty()) {
+            int bankY = entryY(entries.size() - 1);
+            g.fill(x + 2, bankY - 3, x + SIDE_WIDTH - 6, bankY - 2, 0xFF444444);
         }
     }
 
@@ -519,6 +557,13 @@ public class MarketScreen extends AbstractContainerScreen<MarketMenu> {
             g.drawString(font, sell, leftPos + SELL_RIGHT - font.width(sell), ry + 5, locked ? COLOR_LOCKED : COLOR_SELL, !locked);
             String buy = row.listing().locked() ? LOCKED.getString() : formatPrice(row.listing().buyPrice());
             g.drawString(font, buy, leftPos + BUY_RIGHT - font.width(buy), ry + 5, locked ? COLOR_LOCKED : COLOR_BUY, !locked);
+            // A gold pip beside whichever price is fee-free today.
+            byte deal = row.listing().deal();
+            if (deal != BrokerDeals.NONE) {
+                int px = leftPos + (deal == BrokerDeals.WANTED ? SELL_RIGHT - font.width(sell) : BUY_RIGHT - font.width(buy)) - 6;
+                g.fill(px, ry + 7, px + 3, ry + 10, 0xFF3F2A00);
+                g.fill(px, ry + 6, px + 3, ry + 9, 0xFFFFD83D);
+            }
         }
 
         int max = maxScroll();
@@ -675,6 +720,10 @@ public class MarketScreen extends AbstractContainerScreen<MarketMenu> {
                             .withStyle(ChatFormatting.GRAY)));
             if (row.listing().locked()) {
                 lines.add(Component.translatable("gui.soloeconomy.locked_tip").withStyle(ChatFormatting.GRAY));
+            }
+            if (row.listing().deal() != BrokerDeals.NONE) {
+                lines.add(Component.translatable(row.listing().deal() == BrokerDeals.WANTED
+                        ? "gui.soloeconomy.deal_wanted" : "gui.soloeconomy.deal_offer").withStyle(ChatFormatting.GOLD));
             }
             g.renderComponentTooltip(font, lines, mouseX, mouseY);
             return;

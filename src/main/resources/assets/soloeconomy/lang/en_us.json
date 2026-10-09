@@ -85,5 +85,9 @@
   "gui.soloeconomy.inventory_price": "Sells for %s each",
   "gui.soloeconomy.inventory_unwanted": "No merchant buys this",
   "merchant.soloeconomy.general": "Store",
-  "merchant.soloeconomy.general.desc": "Deals in anything with a price. Search to find what you need."
+  "merchant.soloeconomy.general.desc": "Deals in anything with a price. Search to find what you need.",
+  "merchant.soloeconomy.deals": "Deals",
+  "merchant.soloeconomy.deals.desc": "No fee on the marked price today. Goods on offer can be bought before you find them.",
+  "gui.soloeconomy.deal_offer": "Broker deal: no fee to buy today",
+  "gui.soloeconomy.deal_wanted": "Broker deal: no fee when you sell today"
 }

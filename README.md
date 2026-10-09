@@ -40,7 +40,8 @@ from gaming the prices.
 5. Emeralds are the currency, kept as an account balance. **Deposit** and **Withdraw** at the Bank,
    always 1:1. The balance survives death.
 6. Put the stall near an unemployed villager. They take it as a job site and become a **Broker**,
-   which cuts the fees at that stall by a quarter.
+   which cuts the fees at that stall by a quarter and brings **deals**: a few goods each day with
+   no fee to buy, and a few with no fee to sell.
 
 **Discovery.** You can only buy what you've found yourself. Carry an item to a stall, or sell it
 there, and it unlocks for buying from then on. Until then its row is greyed out and marked Locked.
@@ -166,6 +167,7 @@ new worlds. Everything is under `[market]`:
 | `priceMultiplier` | 1.0 | Scales every default price. Raise it to make emeralds go less far. |
 | `requireDiscovery` | true | Players can only buy items they have carried to or sold at a stall. |
 | `openMarket` | false | Adds a Store merchant that trades every item with a price. |
+| `brokerDeals` | 3 | Fee-free goods to buy, and to sell, per day at a stall with a Broker. 0 = off. |
 | `modRecipes` | false | Also price items from other mods' recipes. See below. |
 | `priceOverrides` | [] | Per-item prices set with `/soloeconomy price`. |
 | `deriveUnpricedItems` | true | Turn off to restrict the market to seeded primitives only. |
@@ -225,7 +227,7 @@ On 1.21.1, `-PwithCreate` adds Create to the dev runs without shipping it.
 
 ## Tests
 
-`runGameTestServer` runs twelve GameTests against the real recipe set and exits non-zero on failure:
+`runGameTestServer` runs thirteen GameTests against the real recipe set and exits non-zero on failure:
 
 | test | guards against |
 | --- | --- |
@@ -240,6 +242,7 @@ On 1.21.1, `-PwithCreate` adds Create to the dev runs without shipping it.
 | carrying an item unlocks buying it | discovery unlocking too much, or nothing |
 | open market trades everything safely | a loop appearing once every priced item is tradeable |
 | daily dumping hits diminishing returns | a 1000-logs-a-day farm earning 8,200 emeralds a month |
+| broker deals never pay to flip | a fee-free buy that sells straight back for more |
 | mod recipes price machine outputs | modded recipes read when off, or chance outputs counted as certain |
 
 ## Layout

@@ -4,6 +4,7 @@ import com.soloeconomy.SoloEconomy;
 import com.soloeconomy.config.EconomyConfig;
 import com.soloeconomy.event.ServerEvents;
 import com.soloeconomy.market.BasePriceLoader;
+import com.soloeconomy.market.BrokerDeals;
 import com.soloeconomy.market.Discovery;
 import com.soloeconomy.market.EconomyAccount;
 import com.soloeconomy.market.MarketAudit;
@@ -471,6 +472,45 @@ public final class EconomyGameTests {
             total += part.getValue() * catalog.primitivePrice(part.getKey());
         }
         return total;
+    }
+
+    /**
+     * Broker deals drop the fee to zero on one side of a trade. Even then, buying a thing fee-free
+     * and selling it straight back at a Broker's stall must lose, for every item, or a deal is a
+     * money machine. Today's deals must also be stable and never put one item on both lists.
+     */
+    @GameTest(template = TEMPLATE)
+    public static void brokerDealsNeverPayToFlip(GameTestHelper helper) {
+        MarketCatalog catalog = buildCatalog(helper);
+        MinecraftServer server = helper.getLevel().getServer();
+        double brokerSpread = EconomyConfig.INSTANCE.effectiveSpread(true);
+        for (Item item : catalog.tradeableItems()) {
+            for (int count : new int[]{1, 64}) {
+                MarketData market = new MarketData();
+                MarketData.Quote bought = market.commitBuy(item, count, 0L, 0.0D);
+                MarketData.Quote sold = market.quoteSell(item, count, 0L, brokerSpread);
+                if (sold.cents() >= bought.cents()) {
+                    helper.fail(String.format("Fee-free %dx %s costs %d and sells back for %d",
+                            count, item, bought.cents(), sold.cents()));
+                }
+            }
+        }
+
+        List<Item> deals = BrokerDeals.items(server);
+        int expected = 2 * EconomyConfig.INSTANCE.brokerDeals.get();
+        if (deals.size() != expected || deals.stream().distinct().count() != expected
+                || !deals.equals(BrokerDeals.items(server))) {
+            helper.fail("Today's deals are the wrong size, repeat an item, or change between calls: " + deals);
+        }
+        Item offer = deals.get(0);
+        Item wanted = deals.get(deals.size() - 1);
+        if (BrokerDeals.spread(server, offer, true, true) != 0.0D
+                || BrokerDeals.spread(server, offer, false, true) != brokerSpread
+                || BrokerDeals.spread(server, wanted, false, true) != 0.0D
+                || BrokerDeals.spread(server, offer, true, false) != EconomyConfig.INSTANCE.effectiveSpread(false)) {
+            helper.fail("A deal waived the wrong fee, or applied at a stall with no Broker");
+        }
+        helper.succeed();
     }
 
     /** A modded machine recipe, shaped like Create's: outputs with a chance, read by method name. */
