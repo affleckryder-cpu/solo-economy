@@ -1,3 +1,22 @@
+# Solo Economy 0.4.0 for Forge 1.20.1
+
+**Minecraft 1.20.1 · Forge 47 or newer · Java 17**
+
+## Broker deals
+
+A stall with a Broker now has deals that change every in-game day:
+
+- **On offer:** three goods you can buy with no fee, even if you haven't discovered them yet.
+- **Wanted:** three goods the Broker takes off you with no fee.
+
+Open a stall that has a Broker and pick **Deals**, in gold at the top of the list, to see today's. Anywhere else in the market, a gold pip marks the price that's fee-free. Stalls without a Broker don't get deals, so hiring one is worth more than the fee cut alone.
+
+Deals are fee-free rather than discounted on purpose: a price below what the market pays would let you buy something and sell it straight back for a profit.
+
+Pack makers: `brokerDeals` in the config sets how many of each there are per day. 0 turns them off.
+
+---
+
 # Solo Economy 0.3.5 for Forge 1.20.1
 
 **Minecraft 1.20.1 · Forge 47 or newer · Java 17**

@@ -32,6 +32,7 @@ public final class EconomyConfig {
     public final ForgeConfigSpec.BooleanValue requireDiscovery;
     public final ForgeConfigSpec.BooleanValue openMarket;
     public final ForgeConfigSpec.BooleanValue modRecipes;
+    public final ForgeConfigSpec.IntValue brokerDeals;
 
     private EconomyConfig(ForgeConfigSpec.Builder builder) {
         builder.comment("Solo Economy - market tuning").push("market");
@@ -123,6 +124,11 @@ public final class EconomyConfig {
                         "merchants in merchants.json deal in. Modded items are included when they are crafted,",
                         "smelted or stonecut from priced materials, or given a price with /soloeconomy price.")
                 .define("openMarket", false);
+
+        brokerDeals = builder
+                .comment("How many goods a stall with a Broker has on offer each day (no fee to buy), and how",
+                        "many it wants (no fee when you sell). They change every in-game day. 0 turns deals off.")
+                .defineInRange("brokerDeals", 3, 0, 20);
 
         modRecipes = builder
                 .comment("Price items from any mod's recipes (Create machines, modded workbenches...), not just",

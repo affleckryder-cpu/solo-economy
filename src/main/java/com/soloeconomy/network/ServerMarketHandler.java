@@ -1,5 +1,6 @@
 package com.soloeconomy.network;
 
+import com.soloeconomy.market.BrokerDeals;
 import com.soloeconomy.market.Discovery;
 import com.soloeconomy.market.EconomyAccount;
 import com.soloeconomy.market.MarketCatalog;
@@ -56,7 +57,9 @@ public final class ServerMarketHandler {
         // A search looks across every merchant; otherwise show one merchant's goods in their own order.
         String search = payload.search().trim().toLowerCase(Locale.ROOT);
         MarketCatalog.Merchant merchant = catalog.merchant(payload.merchant());
+        List<Item> deals = menu.isStaffed() ? BrokerDeals.items(player.server) : List.of();
         List<Item> source = !search.isEmpty() ? catalog.tradeableItems()
+                : BrokerDeals.MERCHANT_ID.equals(payload.merchant()) && !deals.isEmpty() ? deals
                 : merchant != null ? merchant.items() : List.of();
 
         List<Listing> carried = new ArrayList<>();
@@ -64,7 +67,7 @@ public final class ServerMarketHandler {
             ItemStack stack = player.getInventory().getItem(slot);
             Item item = stack.getItem();
             if (isTradeableStack(stack) && catalog.isTradeable(item) && carried.stream().noneMatch(l -> l.item() == item)) {
-                carried.add(listing(data, player, item, gameTime, spread));
+                carried.add(listing(data, player, menu, item, gameTime));
             }
         }
 
@@ -76,23 +79,38 @@ public final class ServerMarketHandler {
             if (payload.inventoryOnly() && countInInventory(player.getInventory(), item) <= 0) {
                 continue;
             }
-            listings.add(listing(data, player, item, gameTime, spread));
+            listings.add(listing(data, player, menu, item, gameTime));
         }
 
         List<MarketListingsPayload.Merchant> merchants = new ArrayList<>();
         for (MarketCatalog.Merchant m : catalog.merchants()) {
             merchants.add(new MarketListingsPayload.Merchant(m.id(), m.icon()));
         }
+        if (!deals.isEmpty()) {
+            merchants.add(new MarketListingsPayload.Merchant(BrokerDeals.MERCHANT_ID, Items.BELL));
+        }
         ModNetwork.sendTo(player, new MarketListingsPayload(merchants, listings, carried, (float) spread,
                 EconomyAccount.balance(player)));
     }
 
-    private static Listing listing(MarketData data, ServerPlayer player, Item item, long gameTime, double spread) {
+    private static Listing listing(MarketData data, ServerPlayer player, MarketMenu menu, Item item, long gameTime) {
         return new Listing(item,
-                (float) data.spotBuyPrice(item, gameTime, spread),
-                (float) data.spotSellPrice(item, gameTime, spread),
+                (float) data.spotBuyPrice(item, gameTime, fee(player, menu, item, true)),
+                (float) data.spotSellPrice(item, gameTime, fee(player, menu, item, false)),
                 (float) data.supplyRatio(item, gameTime),
-                !Discovery.canBuy(player, item));
+                !canBuy(player, menu, item),
+                BrokerDeals.dealFor(player.server, item, menu.isStaffed()));
+    }
+
+    /** Discovered, or on offer from this stall's Broker today: a deal is how you get hold of something new. */
+    private static boolean canBuy(ServerPlayer player, MarketMenu menu, Item item) {
+        return Discovery.canBuy(player, item)
+                || BrokerDeals.dealFor(player.server, item, menu.isStaffed()) == BrokerDeals.ON_OFFER;
+    }
+
+    /** The half-spread this stall charges on one side of a trade in this item, Broker deals included. */
+    private static double fee(ServerPlayer player, MarketMenu menu, Item item, boolean buying) {
+        return BrokerDeals.spread(player.server, item, buying, menu.isStaffed());
     }
 
     /**
@@ -112,21 +130,22 @@ public final class ServerMarketHandler {
 
         MarketData data = MarketData.get(player.server);
         long gameTime = player.level().getGameTime();
-        double spread = menu.spread();
+        double sellFee = fee(player, menu, item, false);
+        double buyFee = fee(player, menu, item, true);
         boolean wantsMax = payload.count() == COUNT_MAX;
         int requested = wantsMax ? MAX_TRADE_COUNT : Mth.clamp(payload.count(), 1, MAX_TRADE_COUNT);
 
         int sellCount = Math.min(requested, countInInventory(player.getInventory(), item));
         long sellTotal = sellCount > 0
-                ? data.quoteSell(item, sellCount, gameTime, spread).cents()
+                ? data.quoteSell(item, sellCount, gameTime, sellFee).cents()
                 : 0L;
 
-        int buyCount = !Discovery.canBuy(player, item) ? 0
+        int buyCount = !canBuy(player, menu, item) ? 0
                 : wantsMax
-                ? data.maxAffordable(item, EconomyAccount.balance(player), gameTime, spread, MAX_TRADE_COUNT)
+                ? data.maxAffordable(item, EconomyAccount.balance(player), gameTime, buyFee, MAX_TRADE_COUNT)
                 : requested;
         long buyTotal = buyCount > 0
-                ? data.quoteBuy(item, buyCount, gameTime, spread).cents()
+                ? data.quoteBuy(item, buyCount, gameTime, buyFee).cents()
                 : 0L;
 
         ModNetwork.sendTo(player, new QuotePayload(item, sellCount, sellTotal, buyCount, buyTotal));
@@ -156,11 +175,11 @@ public final class ServerMarketHandler {
 
         MarketData data = MarketData.get(player.server);
         long gameTime = player.level().getGameTime();
-        double spread = menu.spread();
+        double spread = fee(player, menu, item, payload.buying());
         boolean wantsMax = payload.count() == COUNT_MAX;
 
         if (payload.buying()) {
-            if (!Discovery.canBuy(player, item)) {
+            if (!canBuy(player, menu, item)) {
                 feedback(player, Component.translatable("message.soloeconomy.locked",
                         new ItemStack(item).getHoverName()), true);
                 return;
