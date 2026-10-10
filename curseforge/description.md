@@ -36,7 +36,7 @@ Not everything is for sale. Every tradeable item has someone with a reason to wa
 | Fisherman | fish, kelp, prismarine |
 | Woodcutter | logs, planks, chests |
 | Mason | stone, sand, clay, bricks |
-| Smith | ores, ingots, iron gear |
+| Smith | ores, ingots, iron and netherite gear |
 | Collector | diamonds, netherite, rare finds |
 | Cleric | mob drops and brewing ingredients |
 | Tailor | wool, leather, dyes |
@@ -52,7 +52,7 @@ Not everything is for sale. Every tradeable item has someone with a reason to wa
 - **Supply tooltips** tell you whether an item is oversupplied or in demand right now
 
 ### 📈 Prices that move
-- **259 tradeable items** in vanilla
+- **269 tradeable items** in vanilla
 - **Selling lowers the price, buying raises it.** A stack of diamonds moves the diamond price about 30%. Cheap goods like cobblestone have deep markets and barely move, but a double chest of it still will.
 - **Markets recover slowly**, about halfway back to normal in a week. Selling a stack now and then pays well; dumping a farm's output every day drives that price down and keeps it there.
 - **Bulk trades are priced unit by unit**, so selling 64 at once is never worse than selling them one at a time. There's no reason to click 64 times.
@@ -110,8 +110,8 @@ About 225 raw materials have set prices. Everything else is priced from the ingr
 
 This is an early release.
 
-- **Not yet tradeable:** netherite tools and armour (smithing recipes aren't supported yet), potions, spawn eggs, music discs, pottery sherds and smithing templates.
-- **Modded items** are traded with `openMarket` on or when a datapack lists them under a merchant. Items from modded machines and workbenches need `modRecipes` on, and some may need a price set by hand.
+- **Not yet tradeable:** potions, spawn eggs, music discs, pottery sherds and armour trims.
+- **Modded items** are traded with `openMarket` on or when a datapack lists them under a merchant. Items from modded machines and workbenches need `modRecipes` on, and some (anything made with a fluid, for one) need a price set by hand.
 - **The balance display** sits in the top-right corner and may overlap a minimap.
 - **Built for single-player.** On a server, all players share one market.
 - **English only.**
