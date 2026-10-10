@@ -199,18 +199,20 @@ keys `merchant.soloeconomy.<id>` and `merchant.soloeconomy.<id>.desc`.
 
 ### Other mods' items
 
-Items crafted, smelted or stonecut from priced materials get a price automatically. With
+Items crafted, smelted, stonecut or upgraded at a smithing table from priced materials get a price automatically. With
 `modRecipes = true` the market also reads any other recipe type that lists its ingredients, such as
 Create's machines and modded workbenches:
 
 - Outputs with a chance (Create's crushing byproducts) are priced by how many you get on average.
 - When a modded machine makes a hand-priced item for less than its price (Create haunts soul sand
   into quartz), that item is priced from the machine instead, so it can't be farmed for money.
-- It is best effort. Only a recipe's ingredient list and results are visible, so fluids aren't
-  counted and a slot that needs several of one item may count once.
+- Recipes that take or give a fluid are skipped. Fluids have no price, and counting honey or lava
+  as free would underprice what they make.
+- It is best effort. Only a recipe's ingredient list and results are visible, so a slot that needs
+  several of one item may count once.
 
 Modded items are only bought and sold with `openMarket` on, or when a datapack lists them under a
-merchant. Tested against Create 6 on 1.21.1: 430 of its 699 items get a price, with a clean audit.
+merchant. Tested against Create 6.0.8 on both versions, with a clean audit.
 
 ## Building
 
@@ -227,7 +229,7 @@ On 1.21.1, `-PwithCreate` adds Create to the dev runs without shipping it.
 
 ## Tests
 
-`runGameTestServer` runs thirteen GameTests against the real recipe set and exits non-zero on failure:
+`runGameTestServer` runs fourteen GameTests against the real recipe set and exits non-zero on failure:
 
 | test | guards against |
 | --- | --- |
@@ -242,8 +244,12 @@ On 1.21.1, `-PwithCreate` adds Create to the dev runs without shipping it.
 | carrying an item unlocks buying it | discovery unlocking too much, or nothing |
 | open market trades everything safely | a loop appearing once every priced item is tradeable |
 | daily dumping hits diminishing returns | a 1000-logs-a-day farm earning 8,200 emeralds a month |
+| netherite gear is priced from smithing | smithing recipes being skipped, leaving netherite gear untradeable |
 | broker deals never pay to flip | a fee-free buy that sells straight back for more |
 | mod recipes price machine outputs | modded recipes read when off, or chance outputs counted as certain |
+
+To test against Create, which ships with obfuscated names a dev run can't load: build once, then
+`python devtools/name_jar.py build/moddev/artifacts/intermediateToNamed.srg <create jar> run/mods/create-dev.jar`.
 
 ## Layout
 
@@ -261,8 +267,7 @@ On 1.21.1, `-PwithCreate` adds Create to the dev runs without shipping it.
 
 ## Known limitations
 
-- Netherite tools and armour aren't tradeable yet: smithing recipes don't list their ingredients the
-  way crafting does. Potions, spawn eggs, music discs and pottery sherds have no price either.
+- Potions, spawn eggs, music discs, pottery sherds and armour trims have no price.
 - The balance display sits in the top-right corner and can't be moved yet.
 - Built for single-player. On a server, every player shares one market.
 - English only.

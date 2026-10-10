@@ -1,3 +1,25 @@
+# Solo Economy 0.4.1 for Forge 1.20.1
+
+**Minecraft 1.20.1 · Forge 47 or newer · Java 17**
+
+## Netherite gear
+
+Netherite tools and armour can be traded now. The **Smith** deals in all nine pieces, plus the Netherite Upgrade template you need to make them.
+
+A netherite sword is priced as what goes into it: the diamond sword, a netherite ingot, and the template the smithing table uses up. Like everything else, you have to find one yourself before you can buy it.
+
+## Fixes
+
+- **Sugar could be mispriced with Create installed.** With `modRecipes` on, the market could decide the cheapest way to make sugar was from honey bottles, price it at three times what sugar cane costs, and let you craft cane into sugar for a profit. The price search behind this is fixed, and it's fixed for every item that hands back a bottle or a bucket, not only sugar.
+- **Recipes that use fluids are now left out** when reading other mods' recipes. Fluids have no price, so a Create recipe that fills a bottle with honey used to price a honey bottle like an empty bottle. With `openMarket` on as well, that could leave sugar and glass bottles with no price at all.
+- With `modRecipes` on, an item a modded machine makes cheaply is now repriced even when the profit would only show up with no fee, so a Broker deal can't open a gap.
+
+## Create
+
+Tested with Create 6.0.8 on both Minecraft versions now, with `modRecipes` and `openMarket` on: every priced item trades and no recipe can be crafted and sold at a profit.
+
+---
+
 # Solo Economy 0.4.0 for Forge 1.20.1
 
 **Minecraft 1.20.1 · Forge 47 or newer · Java 17**

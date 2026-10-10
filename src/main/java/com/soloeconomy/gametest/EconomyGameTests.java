@@ -35,6 +35,7 @@ import net.minecraftforge.gametest.PrefixGameTestTemplate;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 /**
@@ -184,6 +185,29 @@ public final class EconomyGameTests {
         if (after >= before) {
             helper.fail(String.format("Dumping diamond blocks left the diamond price at %.3f (was %.3f)",
                     after, before));
+        }
+        helper.succeed();
+    }
+
+    /**
+     * Netherite gear comes off a smithing table, not a crafting grid. It must still be priced, as
+     * the diamond tool plus an ingot plus the template the upgrade uses up.
+     *
+     * <p>Guards against: smithing recipes being skipped, which left netherite gear untradeable.
+     */
+    @GameTest(template = TEMPLATE)
+    public static void netheriteGearIsPricedFromSmithing(GameTestHelper helper) {
+        MarketCatalog catalog = buildCatalog(helper);
+        MarketCatalog.Bundle sword = catalog.bundle(Items.NETHERITE_SWORD);
+        if (sword == null || !catalog.isTradeable(Items.NETHERITE_SWORD)) {
+            helper.fail("A netherite sword has no price or no merchant");
+            return;
+        }
+        Map<Item, Double> in = sword.contents();
+        if (Math.abs(in.getOrDefault(Items.ANCIENT_DEBRIS, 0.0D) - 4.0D) > EPSILON
+                || Math.abs(in.getOrDefault(Items.DIAMOND, 0.0D) - 2.0D) > EPSILON
+                || Math.abs(in.getOrDefault(Items.NETHERITE_UPGRADE_SMITHING_TEMPLATE, 0.0D) - 1.0D) > EPSILON) {
+            helper.fail("A netherite sword should be 4 debris, 2 diamonds and a template, but is " + in);
         }
         helper.succeed();
     }

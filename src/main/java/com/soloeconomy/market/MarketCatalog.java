@@ -17,10 +17,13 @@ import net.minecraft.world.item.crafting.Ingredient;
 import net.minecraft.world.item.crafting.Recipe;
 import net.minecraft.world.item.crafting.RecipeManager;
 import net.minecraft.world.item.crafting.SingleItemRecipe;
+import net.minecraft.world.item.crafting.SmithingTransformRecipe;
 
 import javax.annotation.Nullable;
 
+import java.lang.reflect.Field;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -200,7 +203,8 @@ public final class MarketCatalog {
         // sand into quartz - which is a real money machine in that world. Price those items from
         // their recipes instead, until the audit comes back clean.
         for (int round = 0; round < 8 && EconomyConfig.INSTANCE.modRecipes.get(); round++) {
-            List<Item> undercut = catalog.loopRisks.stream().map(MarketAudit.LoopRisk::result)
+            // At no spread at all, so not even a fee-free Broker deal leaves a margin.
+            List<Item> undercut = MarketAudit.findLoops(catalog, nodes, 0.0D).stream().map(MarketAudit.LoopRisk::result)
                     .filter(primitives::containsKey).distinct().toList();
             if (undercut.isEmpty()) {
                 break;
@@ -224,9 +228,15 @@ public final class MarketCatalog {
                                           List<CraftPath> nodes) {
         // Static prices exist only to decide which option in a tag-based ingredient slot is the
         // cheapest. They never reach a player.
+        // Twice: first without crediting returned containers, to learn what a bucket or a bottle is
+        // worth, then for real with those values fixed. Crediting them while they are still being
+        // worked out let a bottle be briefly valued at a honey bottle's price (Create empties one
+        // into the other), which made honey look like a free way to make sugar - and stuck.
+        Map<Item, Double> containers = new HashMap<>(primitives);
+        relax(containers, new HashMap<>(), nodes, primitives.keySet(), Map.of());
         Map<Item, Double> estimates = new HashMap<>(primitives);
         Map<Item, CraftPath> paths = new HashMap<>();
-        relax(estimates, paths, nodes, primitives.keySet());
+        relax(estimates, paths, nodes, primitives.keySet(), containers);
 
         Map<Item, Bundle> bundles = new HashMap<>();
         Set<Item> failed = new HashSet<>();
@@ -319,7 +329,8 @@ public final class MarketCatalog {
     private static void relax(Map<Item, Double> estimates,
                               Map<Item, CraftPath> paths,
                               List<CraftPath> nodes,
-                              Set<Item> pinned) {
+                              Set<Item> pinned,
+                              Map<Item, Double> containers) {
         boolean derive = EconomyConfig.INSTANCE.deriveUnpricedItems.get();
         Map<Item, Double> bestPathCost = new HashMap<>();
 
@@ -335,7 +346,7 @@ public final class MarketCatalog {
                     for (Item choice : choices) {
                         Double price = estimates.get(choice);
                         if (price != null) {
-                            best = Math.min(best, price - remainderEstimate(choice, estimates));
+                            best = Math.min(best, price - remainderEstimate(choice, containers));
                         }
                     }
                     if (best == Double.MAX_VALUE) {
@@ -517,8 +528,10 @@ public final class MarketCatalog {
             if (!reads(recipe)) {
                 continue;
             }
-            boolean modded = !(recipe instanceof CraftingRecipe || recipe instanceof AbstractCookingRecipe
-                    || recipe instanceof SingleItemRecipe);
+            boolean modded = !vanillaType(recipe);
+            if (modded && usesFluids(recipe)) {
+                continue;
+            }
 
             ItemStack result;
             try {
@@ -535,7 +548,7 @@ public final class MarketCatalog {
                 continue;
             }
 
-            List<Ingredient> ingredients = recipe.getIngredients();
+            List<Ingredient> ingredients = ingredients(recipe);
             if (ingredients.isEmpty()) {
                 continue; // map cloning, firework crafting and friends have no fixed inputs
             }
@@ -572,6 +585,51 @@ public final class MarketCatalog {
     }
 
     /**
+     * A smithing upgrade doesn't list its ingredients and keeps them private, so they are read off
+     * its fields: template, base and addition, all used up. Which is which doesn't matter here.
+     */
+    private static List<Ingredient> ingredients(Recipe<?> recipe) {
+        if (!(recipe instanceof SmithingTransformRecipe)) {
+            return recipe.getIngredients();
+        }
+        List<Ingredient> ingredients = new ArrayList<>(3);
+        try {
+            for (Field field : SmithingTransformRecipe.class.getDeclaredFields()) {
+                if (field.getType() == Ingredient.class) {
+                    field.setAccessible(true);
+                    ingredients.add((Ingredient) field.get(recipe));
+                }
+            }
+        } catch (ReflectiveOperationException | RuntimeException e) {
+            return List.of(); // unreadable: leave the item unpriced rather than underprice it
+        }
+        return ingredients;
+    }
+
+    /**
+     * Create-style recipes can take or give fluids, and fluids have no price here. Reading one as
+     * though the honey or lava were free underprices what it makes (a honey bottle for the price
+     * of its bottle), so those recipes are left out. Read by method name, like the chances below.
+     */
+    private static boolean usesFluids(Recipe<?> recipe) {
+        for (String getter : new String[] {"getFluidIngredients", "getFluidResults"}) {
+            try {
+                if (!((Collection<?>) recipe.getClass().getMethod(getter).invoke(recipe)).isEmpty()) {
+                    return true;
+                }
+            } catch (ReflectiveOperationException | ClassCastException e) {
+                // not a recipe type with fluids
+            }
+        }
+        return false;
+    }
+
+    private static boolean vanillaType(Recipe<?> recipe) {
+        return recipe instanceof CraftingRecipe || recipe instanceof AbstractCookingRecipe
+                || recipe instanceof SingleItemRecipe || recipe instanceof SmithingTransformRecipe;
+    }
+
+    /**
      * How many of {@code item} a modded recipe makes on average. Create-style recipes list outputs
      * with a chance (crushing gravel gives flint 25% of the time); counting those as certain would
      * price flint at a quarter of what it costs. Read by method name so Create isn't a dependency.
@@ -592,14 +650,13 @@ public final class MarketCatalog {
     }
 
     /**
-     * Crafting, smelting and stonecutting always. Any other recipe - Create machines, modded
+     * Crafting, smelting, stonecutting and smithing upgrades always. Any other recipe - Create machines, modded
      * workbenches - only with modRecipes on, since all we can see is its ingredient list and main
-     * result: fluids, per-slot counts, chance byproducts and tools that aren't used up are
-     * invisible, and the last two can overprice an item beyond what the audit can check.
+     * result: per-slot counts, chance byproducts and tools that aren't used up are invisible, and
+     * the last two can overprice an item beyond what the audit can check.
      */
     static boolean reads(Recipe<?> recipe) {
-        if (recipe instanceof CraftingRecipe || recipe instanceof AbstractCookingRecipe
-                || recipe instanceof SingleItemRecipe) {
+        if (vanillaType(recipe)) {
             return true;
         }
         // Not filtered on isSpecial(): Create marks every machine recipe special to keep it out of
