@@ -451,7 +451,8 @@ public final class EconomyGameTests {
     /**
      * modRecipes must price a modded machine's output from its ingredients, and stay off by default.
      * The "machine" here is a recipe class the market doesn't otherwise read, with a Create-style
-     * chance output that must be priced by its expected count, not as a sure thing.
+     * chance output that must be priced by its expected count, not as a sure thing, and half a
+     * bucket of lava that must be paid for with the empty bucket handed back.
      */
     @GameTest(template = TEMPLATE)
     public static void modRecipesPriceMachineOutputsFromIngredients(GameTestHelper helper) {
@@ -479,13 +480,52 @@ public final class EconomyGameTests {
                 helper.fail("modRecipes did not price the machine's output");
             }
             // Two patterns at a 25% chance: half a pattern per craft on average, so each costs double.
-            double expected = 2 * (2 * raw(on, Items.IRON_INGOT) + raw(on, Items.REDSTONE));
+            double lava = raw(on, Items.LAVA_BUCKET) - raw(on, Items.BUCKET);
+            double expected = 2 * (2 * raw(on, Items.IRON_INGOT) + raw(on, Items.REDSTONE) + 0.5 * lava);
             double actual = raw(on, Items.PIGLIN_BANNER_PATTERN);
             if (Math.abs(actual - expected) > EPSILON) {
                 helper.fail(String.format("Machine output worth %.3f, its ingredients %.3f", actual, expected));
             }
         } finally {
             EconomyConfig.INSTANCE.modRecipes.set(saved);
+        }
+        helper.succeed();
+    }
+
+    /**
+     * A pile of recipes that all make each other, and make more than they use, must not stall the
+     * price book. Modpacks are full of these: ingots to dust and back, ore doubling, unification.
+     *
+     * <p>Guards against: retrying every route round a recipe loop, which took longer than the age
+     * of the universe on twenty items and left worlds stuck at 100% on load.
+     */
+    @GameTest(template = TEMPLATE)
+    public static void tangledRecipesDoNotStallTheCatalog(GameTestHelper helper) {
+        MinecraftServer server = helper.getLevel().getServer();
+        RecipeManager recipes = new RecipeManager(server.registryAccess());
+        List<RecipeHolder<?>> all = new ArrayList<>(server.getRecipeManager().getRecipes());
+        Ingredient anySherd = Ingredient.of(net.minecraft.tags.ItemTags.DECORATED_POT_SHERDS);
+        int n = 0;
+        for (ItemStack sherd : anySherd.getItems()) {
+            all.add(new RecipeHolder<>(ResourceLocation.fromNamespaceAndPath(SoloEconomy.MOD_ID, "tangle_" + n++),
+                    new net.minecraft.world.item.crafting.ShapelessRecipe("", net.minecraft.world.item.crafting.CraftingBookCategory.MISC,
+                            new ItemStack(sherd.getItem(), 4), NonNullList.of(Ingredient.EMPTY, anySherd, anySherd, anySherd))));
+        }
+        all.add(new RecipeHolder<>(ResourceLocation.fromNamespaceAndPath(SoloEconomy.MOD_ID, "tangle_start"),
+                new net.minecraft.world.item.crafting.ShapelessRecipe("", net.minecraft.world.item.crafting.CraftingBookCategory.MISC,
+                        new ItemStack(anySherd.getItems()[0].getItem()), NonNullList.of(Ingredient.EMPTY, Ingredient.of(Items.COBBLESTONE)))));
+        recipes.replaceRecipes(all);
+
+        BasePriceLoader.Parsed seeds = BasePriceLoader.current();
+        long start = System.nanoTime();
+        MarketCatalog catalog = MarketCatalog.build(seeds.prices(), seeds.untradeable(), MerchantLoader.current(),
+                recipes, server.registryAccess());
+        long millis = (System.nanoTime() - start) / 1_000_000L;
+        if (millis > 5_000L) {
+            helper.fail("Building the price book took " + millis + " ms");
+        }
+        if (catalog.bundle(Items.DIAMOND_BLOCK) == null) {
+            helper.fail("The tangle took ordinary items down with it");
         }
         helper.succeed();
     }
@@ -539,6 +579,11 @@ public final class EconomyGameTests {
 
     /** A modded machine recipe, shaped like Create's: outputs with a chance, read by method name. */
     public static final class TestMachine implements Recipe<RecipeInput> {
+        public List<net.neoforged.neoforge.fluids.crafting.SizedFluidIngredient> getFluidIngredients() {
+            return List.of(net.neoforged.neoforge.fluids.crafting.SizedFluidIngredient.of(
+                    net.minecraft.world.level.material.Fluids.LAVA, 500));
+        }
+
         public List<TestOutput> getRollableResults() {
             return List.of(new TestOutput(new ItemStack(Items.PIGLIN_BANNER_PATTERN, 2), 0.25F));
         }

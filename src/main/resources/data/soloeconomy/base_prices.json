@@ -255,7 +255,14 @@
     "minecraft:ominous_bottle": 8.0,
     "minecraft:trial_key": 20.0,
     "minecraft:ominous_trial_key": 40.0,
-    "minecraft:disc_fragment_5": 4.0
+    "minecraft:disc_fragment_5": 4.0,
+
+    "create:raw_zinc": 1.0,
+    "create:asurine": 0.12,
+    "create:crimsite": 0.12,
+    "create:limestone": 0.08,
+    "create:ochrum": 0.12,
+    "create:veridium": 0.12
   },
 
   "untradeable": [

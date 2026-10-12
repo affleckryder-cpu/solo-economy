@@ -24,7 +24,6 @@ import javax.annotation.Nullable;
 
 import java.lang.reflect.Field;
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -67,8 +66,6 @@ public final class MarketCatalog {
     /** Tag-based ingredients like #logs can list hundreds of items; only scan this many. */
     private static final int MAX_INGREDIENT_CHOICES = 64;
     private static final int MAX_RELAXATION_PASSES = 32;
-    /** Guards against pathological recipe chains while expanding a bundle. */
-    private static final int MAX_EXPANSION_DEPTH = 16;
     /** Assembly fees stop compounding here, so a deep chain cannot balloon into absurdity. */
     private static final int MAX_CRAFT_STEPS = 6;
 
@@ -190,6 +187,7 @@ public final class MarketCatalog {
                                       List<MerchantLoader.Definition> merchantDefinitions,
                                       RecipeManager recipeManager,
                                       HolderLookup.Provider registries) {
+        long started = System.nanoTime();
         Map<Item, Double> primitives = new HashMap<>();
         for (Map.Entry<Item, Double> seed : seeds.entrySet()) {
             if (!blocked.contains(seed.getKey())) {
@@ -218,8 +216,9 @@ public final class MarketCatalog {
             catalog = assemble(primitives, blocked, merchantDefinitions, nodes);
         }
 
-        SoloEconomy.LOGGER.info("Market catalog built: {} priced items, {} traded by {} merchants",
-                catalog.bundles.size(), catalog.size(), catalog.merchants().size());
+        SoloEconomy.LOGGER.info("Market catalog built in {} ms: {} recipes read, {} priced items, {} traded by {} merchants",
+                (System.nanoTime() - started) / 1_000_000L, nodes.size(), catalog.bundles.size(), catalog.size(),
+                catalog.merchants().size());
         reportLoops(catalog.loopRisks);
         return catalog;
     }
@@ -239,12 +238,7 @@ public final class MarketCatalog {
         Map<Item, CraftPath> paths = new HashMap<>();
         relax(estimates, paths, nodes, primitives.keySet(), containers);
 
-        Map<Item, Bundle> bundles = new HashMap<>();
-        Set<Item> failed = new HashSet<>();
-        for (Item item : estimates.keySet()) {
-            expand(item, bundles, failed, new HashSet<>(), primitives, paths, estimates,
-                    blocked, 0, new boolean[1]);
-        }
+        Map<Item, Bundle> bundles = expandAll(primitives, paths, estimates, blocked);
         bundles.keySet().removeAll(blocked);
 
         MarketCatalog catalog = new MarketCatalog(new HashMap<>(primitives), bundles,
@@ -342,9 +336,9 @@ public final class MarketCatalog {
                 double cost = 0.0D;
                 boolean complete = true;
 
-                for (List<Item> choices : node.ingredients()) {
+                for (Slot slot : node.ingredients()) {
                     double best = Double.MAX_VALUE;
-                    for (Item choice : choices) {
+                    for (Item choice : slot.choices()) {
                         Double price = estimates.get(choice);
                         if (price != null) {
                             best = Math.min(best, price - remainderEstimate(choice, containers));
@@ -354,7 +348,7 @@ public final class MarketCatalog {
                         complete = false;
                         break;
                     }
-                    cost += best;
+                    cost += best * slot.count();
                 }
                 if (!complete) {
                     continue;
@@ -395,103 +389,117 @@ public final class MarketCatalog {
     }
 
     /**
-     * Expand one item into the primitives it is ultimately made of.
+     * Expand every item into the primitives it is ultimately made of, working up from the
+     * primitives: an item is settled once the things it is made from are.
      *
      * <p>Per ingredient slot the cheapest option that can itself be expanded wins. Anything the
      * recipe hands back (empty buckets) is subtracted, so a cake is not priced as though its three
      * milk buckets were destroyed.
      *
-     * @param cycleHit set when this subtree bailed out on a cycle. Such a failure depends on which
-     *                 item we started from, so it must not be cached: B may be perfectly
-     *                 expandable on its own even though A -> B -> A went round in a circle.
-     * @return the bundle, or null if this item cannot be reduced to primitives
+     * <p>Recipes that go round in a circle (ingot to block to ingot) never settle that way. When
+     * nothing more can be settled, each stuck item gets one chance to be made from what is already
+     * settled, skipping the options that are stuck too; whatever is still stuck after that has no
+     * honest answer and gets no price. This used to be a search that retried every route round
+     * every loop, which a modpack's worth of loops could keep busy for ever.
+     */
+    private static Map<Item, Bundle> expandAll(Map<Item, Double> primitives,
+                                               Map<Item, CraftPath> paths,
+                                               Map<Item, Double> estimates,
+                                               Set<Item> blocked) {
+        Map<Item, Bundle> done = new HashMap<>();
+        for (Item item : primitives.keySet()) {
+            done.put(item, new Bundle(Map.of(item, 1.0D), 0));
+        }
+        // In registry order, so the same world always gets the same prices.
+        List<Item> open = new ArrayList<>();
+        for (Item item : estimates.keySet()) {
+            if (!done.containsKey(item) && !blocked.contains(item) && paths.containsKey(item)) {
+                open.add(item);
+            }
+        }
+        open.sort(Comparator.comparingInt(BuiltInRegistries.ITEM::getId));
+        Set<Item> waiting = new HashSet<>(open);
+
+        boolean stuck = false;
+        while (!waiting.isEmpty()) {
+            boolean progress = false;
+            for (Item item : open) {
+                if (!waiting.contains(item)) {
+                    continue;
+                }
+                Bundle bundle = expand(paths.get(item), done, waiting, primitives, estimates, stuck);
+                if (bundle == null) {
+                    continue; // made from something not settled yet
+                }
+                waiting.remove(item);
+                progress = true;
+                if (bundle != NO_BUNDLE) {
+                    done.put(item, bundle);
+                }
+            }
+            if (!progress && stuck) {
+                break; // only loops are left
+            }
+            stuck = !progress;
+        }
+        return done;
+    }
+
+    /** Marks an item that cannot be reduced to primitives. */
+    private static final Bundle NO_BUNDLE = new Bundle(Map.of(), -1);
+
+    /**
+     * @param stuck treat options that are still waiting as unavailable instead of waiting for them
+     * @return the bundle, {@link #NO_BUNDLE} if there is none, or null to try again later
      */
     @Nullable
-    private static Bundle expand(Item item,
-                                 Map<Item, Bundle> memo,
-                                 Set<Item> failed,
-                                 Set<Item> visiting,
+    private static Bundle expand(CraftPath path,
+                                 Map<Item, Bundle> done,
+                                 Set<Item> waiting,
                                  Map<Item, Double> primitives,
-                                 Map<Item, CraftPath> paths,
                                  Map<Item, Double> estimates,
-                                 Set<Item> blocked,
-                                 int depth,
-                                 boolean[] cycleHit) {
-        if (blocked.contains(item) || failed.contains(item)) {
-            return null;
-        }
-        Bundle cached = memo.get(item);
-        if (cached != null) {
-            return cached;
-        }
-        if (primitives.containsKey(item)) {
-            Bundle self = new Bundle(Map.of(item, 1.0D), 0);
-            memo.put(item, self);
-            return self;
-        }
-        // A cycle (ingot -> block -> ingot) or a runaway chain means no honest answer exists.
-        if (depth >= MAX_EXPANSION_DEPTH || visiting.contains(item)) {
-            cycleHit[0] = true;
-            return null;
-        }
-
-        CraftPath path = paths.get(item);
-        if (path == null) {
-            failed.add(item);
-            return null;
-        }
-
-        visiting.add(item);
+                                 boolean stuck) {
         Map<Item, Double> contents = new HashMap<>();
         int steps = 0;
-        boolean ok = true;
-        boolean[] subCycle = new boolean[1];
 
-        for (List<Item> choices : path.ingredients()) {
-            List<Item> ordered = new ArrayList<>(choices);
+        for (Slot slot : path.ingredients()) {
+            double amount = slot.count();
+            List<Item> ordered = new ArrayList<>(slot.choices());
             ordered.sort(Comparator.comparingDouble(
                     c -> estimates.getOrDefault(c, Double.MAX_VALUE)));
 
             Bundle chosen = null;
             Item chosenItem = null;
             for (Item choice : ordered) {
-                if (!estimates.containsKey(choice)) {
-                    continue;
-                }
-                Bundle sub = expand(choice, memo, failed, visiting, primitives, paths,
-                        estimates, blocked, depth + 1, subCycle);
+                Bundle sub = done.get(choice);
                 if (sub != null) {
                     chosen = sub;
                     chosenItem = choice;
                     break;
                 }
+                if (waiting.contains(choice) && !stuck) {
+                    return null;
+                }
             }
             if (chosen == null) {
-                ok = false;
-                break;
+                // While stuck, a failure is not final: an option may settle later in the same sweep.
+                return stuck ? null : NO_BUNDLE;
             }
 
-            chosen.contents().forEach((prim, qty) -> contents.merge(prim, qty, Double::sum));
+            chosen.contents().forEach((prim, qty) -> contents.merge(prim, qty * amount, Double::sum));
             steps = Math.max(steps, chosen.craftSteps());
 
             ItemStack remainder = new ItemStack(chosenItem).getCraftingRemainingItem();
             if (!remainder.isEmpty()) {
-                Bundle back = expand(remainder.getItem(), memo, failed, visiting, primitives,
-                        paths, estimates, blocked, depth + 1, subCycle);
+                Bundle back = done.get(remainder.getItem());
+                if (back == null && waiting.contains(remainder.getItem()) && !stuck) {
+                    return null;
+                }
                 if (back != null) {
-                    double count = remainder.getCount();
+                    double count = remainder.getCount() * amount;
                     back.contents().forEach((prim, qty) -> contents.merge(prim, -qty * count, Double::sum));
                 }
             }
-        }
-
-        visiting.remove(item);
-        cycleHit[0] |= subCycle[0];
-        if (!ok) {
-            if (!subCycle[0]) {
-                failed.add(item);
-            }
-            return null;
         }
 
         double divisor = path.resultCount(); // always > 0: zero-output recipes are never collected
@@ -509,15 +517,9 @@ public final class MarketCatalog {
             }
         }
         if (normalised.isEmpty() || baseValue <= 0.0D) {
-            if (!subCycle[0]) {
-                failed.add(item);
-            }
-            return null;
+            return NO_BUNDLE;
         }
-
-        Bundle bundle = new Bundle(Map.copyOf(normalised), Math.min(MAX_CRAFT_STEPS, steps + 1));
-        memo.put(item, bundle);
-        return bundle;
+        return new Bundle(Map.copyOf(normalised), Math.min(MAX_CRAFT_STEPS, steps + 1));
     }
 
     private static List<CraftPath> collectRecipes(RecipeManager recipeManager,
@@ -531,9 +533,6 @@ public final class MarketCatalog {
                 continue;
             }
             boolean modded = !vanillaType(recipe);
-            if (modded && usesFluids(recipe)) {
-                continue;
-            }
 
             ItemStack result;
             try {
@@ -541,23 +540,14 @@ public final class MarketCatalog {
             } catch (Exception e) {
                 continue; // dynamic recipes can throw without a real crafting container
             }
-            if (result == null || result.isEmpty() || result.getCount() <= 0) {
+            Item resultItem = result == null || result.isEmpty() ? Items.AIR : result.getItem();
+            if (blocked.contains(resultItem)) {
                 continue;
             }
 
-            Item resultItem = result.getItem();
-            if (resultItem == Items.AIR || blocked.contains(resultItem)) {
-                continue;
-            }
-
-            List<Ingredient> ingredients = ingredients(recipe);
-            if (ingredients.isEmpty()) {
-                continue; // map cloning, firework crafting and friends have no fixed inputs
-            }
-
-            List<List<Item>> choices = new ArrayList<>(ingredients.size());
+            List<Slot> slots = new ArrayList<>();
             boolean usable = true;
-            for (Ingredient ingredient : ingredients) {
+            for (Ingredient ingredient : ingredients(recipe)) {
                 if (ingredient.isEmpty()) {
                     continue; // empty grid slot
                 }
@@ -570,16 +560,32 @@ public final class MarketCatalog {
                 for (int i = 0; i < options.length && i < MAX_INGREDIENT_CHOICES; i++) {
                     items.add(options[i].getItem());
                 }
-                choices.add(List.copyOf(items));
+                slots.add(new Slot(List.copyOf(items), 1.0D));
             }
 
-            if (!usable || choices.isEmpty()) {
+            FluidReader.Parts fluids = modded ? FluidReader.read(recipe) : FluidReader.NONE;
+            if (!usable || fluids == null) {
                 continue;
             }
+            slots.addAll(fluids.inputs());
+            if (slots.isEmpty()) {
+                continue; // map cloning, firework crafting and friends have no fixed inputs
+            }
 
-            double count = modded ? expectedCount(recipe, resultItem, result.getCount()) : result.getCount();
-            if (count > 0.0D) {
-                nodes.add(new CraftPath(resultItem, count, List.copyOf(choices), modded));
+            if (resultItem != Items.AIR) {
+                double count = modded ? expectedCount(recipe, resultItem, result.getCount()) : result.getCount();
+                if (count > 0.0D) {
+                    nodes.add(new CraftPath(resultItem, count, List.copyOf(slots), modded));
+                }
+            }
+            // A fluid the recipe makes is priced as its bucket, which takes an empty one to fill.
+            for (Slot made : fluids.outputs()) {
+                Item bucket = made.choices().get(0);
+                if (!blocked.contains(bucket)) {
+                    List<Slot> inputs = new ArrayList<>(slots);
+                    inputs.add(new Slot(List.of(Items.BUCKET), made.count()));
+                    nodes.add(new CraftPath(bucket, made.count(), List.copyOf(inputs), true));
+                }
             }
         }
 
@@ -606,24 +612,6 @@ public final class MarketCatalog {
             return List.of(); // unreadable: leave the item unpriced rather than underprice it
         }
         return ingredients;
-    }
-
-    /**
-     * Create-style recipes can take or give fluids, and fluids have no price here. Reading one as
-     * though the honey or lava were free underprices what it makes (a honey bottle for the price
-     * of its bottle), so those recipes are left out. Read by method name, like the chances below.
-     */
-    private static boolean usesFluids(Recipe<?> recipe) {
-        for (String getter : new String[] {"getFluidIngredients", "getFluidResults"}) {
-            try {
-                if (!((Collection<?>) recipe.getClass().getMethod(getter).invoke(recipe)).isEmpty()) {
-                    return true;
-                }
-            } catch (ReflectiveOperationException | ClassCastException e) {
-                // not a recipe type with fluids
-            }
-        }
-        return false;
     }
 
     private static boolean vanillaType(Recipe<?> recipe) {
@@ -653,8 +641,8 @@ public final class MarketCatalog {
 
     /**
      * Crafting, smelting, stonecutting and smithing upgrades always. Any other recipe - Create machines, modded
-     * workbenches - only with modRecipes on, since all we can see is its ingredient list and main
-     * result: per-slot counts, chance byproducts and tools that aren't used up are invisible, and
+     * workbenches - only with modRecipes on, since all we can see is its ingredient list, fluids
+     * and main result: per-slot counts, byproducts and tools that aren't used up are invisible, and
      * the last two can overprice an item beyond what the audit can check.
      */
     static boolean reads(Recipe<?> recipe) {
@@ -682,6 +670,10 @@ public final class MarketCatalog {
     }
 
     /** One recipe, reduced to what pricing cares about. {@code modded}: read only because of modRecipes. */
-    public record CraftPath(Item result, double resultCount, List<List<Item>> ingredients, boolean modded) {
+    public record CraftPath(Item result, double resultCount, List<Slot> ingredients, boolean modded) {
+    }
+
+    /** One ingredient: any of {@code choices}, {@code count} of it. A fluid is a count of its bucket. */
+    public record Slot(List<Item> choices, double count) {
     }
 }

@@ -206,13 +206,14 @@ Create's machines and modded workbenches:
 - Outputs with a chance (Create's crushing byproducts) are priced by how many you get on average.
 - When a modded machine makes a hand-priced item for less than its price (Create haunts soul sand
   into quartz), that item is priced from the machine instead, so it can't be farmed for money.
-- Recipes that take or give a fluid are skipped. Fluids have no price, and counting honey or lava
-  as free would underprice what they make.
+- A fluid is priced through its bucket: 250 mB of honey is a quarter of a honey bucket, less the
+  empty bucket. Water is free. A recipe that needs a fluid with no bucket (a potion) is skipped.
 - It is best effort. Only a recipe's ingredient list and results are visible, so a slot that needs
   several of one item may count once.
 
 Modded items are only bought and sold with `openMarket` on, or when a datapack lists them under a
-merchant. Tested against Create 6.0.8 on both versions, with a clean audit.
+merchant. Tested against Create 6.0.8 on both versions: about 575 of its 700 items get a price, with a clean
+audit. Raw zinc and Create's stones have seed prices in `base_prices.json`.
 
 ## Building
 
@@ -229,7 +230,7 @@ On 1.21.1, `-PwithCreate` adds Create to the dev runs without shipping it.
 
 ## Tests
 
-`runGameTestServer` runs fourteen GameTests against the real recipe set and exits non-zero on failure:
+`runGameTestServer` runs fifteen GameTests against the real recipe set and exits non-zero on failure:
 
 | test | guards against |
 | --- | --- |
@@ -245,6 +246,7 @@ On 1.21.1, `-PwithCreate` adds Create to the dev runs without shipping it.
 | open market trades everything safely | a loop appearing once every priced item is tradeable |
 | daily dumping hits diminishing returns | a 1000-logs-a-day farm earning 8,200 emeralds a month |
 | netherite gear is priced from smithing | smithing recipes being skipped, leaving netherite gear untradeable |
+| tangled recipes do not stall the catalog | recipe loops making the price book take for ever, leaving worlds stuck at 100% |
 | broker deals never pay to flip | a fee-free buy that sells straight back for more |
 | mod recipes price machine outputs | modded recipes read when off, or chance outputs counted as certain |
 
