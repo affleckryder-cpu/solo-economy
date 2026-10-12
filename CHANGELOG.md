@@ -1,6 +1,16 @@
-# Solo Economy 0.4.1 for Forge 1.20.1
+# Solo Economy 0.5.0 for Forge 1.20.1
 
 **Minecraft 1.20.1 · Forge 47 or newer · Java 17**
+
+## Fixed: worlds stuck at 100% in modpacks
+
+In a modpack, a world could sit at 100% on the loading screen and never open, most often with `modRecipes = true`.
+
+The cause was recipes that make each other in a circle: ingots to dust and back, ore doubling, items that convert between mods. Working out prices, the mod tried every possible route round those circles, and with enough of them that never finishes. It now settles prices from the raw materials upward and gives up cleanly on a circle it can't resolve, so the same step takes well under a second.
+
+Items caught in a circle with no way in from a priced material stay unpriced, and you can set those with `/soloeconomy price <item> set <emeralds>`.
+
+If a world still hangs or loads slowly, the log now says how long the price book took. Look for the line starting `Market catalog built in` and send it along with your mod list.
 
 ## Netherite gear
 
@@ -8,15 +18,26 @@ Netherite tools and armour can be traded now. The **Smith** deals in all nine pi
 
 A netherite sword is priced as what goes into it: the diamond sword, a netherite ingot, and the template the smithing table uses up. Like everything else, you have to find one yourself before you can buy it.
 
+## Better Create support
+
+Playing with Create? Turn on `modRecipes` and `openMarket` in the config and most of Create is now priced for you: **about 575 of its 700 items**, up from about 440.
+
+- **Zinc and brass have prices.** Raw zinc and Create's stones (asurine, crimsite, limestone, ochrum, veridium) come with default prices, and everything made from them follows: zinc ingots, brass, casings, cogwheels and so on.
+- **Recipes that use fluids are priced properly.** A fluid is counted as part of a bucket of it, so a recipe that takes 250 mB of honey costs a quarter of a honey bucket's worth of honey. Water is free. Fluids a machine makes, like chocolate, are priced from what went into them. Before, fluids were treated as free, which priced a honey bottle like an empty bottle.
+- Recipes that use a fluid with no bucket (potions) are skipped.
+
+What still has no price: things with no recipe to read (weathered copper, creative items, experience nuggets) and items built by sequenced assembly, like the precision mechanism. Set those with `/soloeconomy price <item> set <emeralds>`.
+
+One thing to know: Create can make some vanilla items cheaply (lava from cobblestone, for one). With `modRecipes` on, those items are priced from the machine, so lava is cheap in a Create world. That's on purpose, or the machine would be a money printer.
+
+Tested with Create 6.0.8 on both Minecraft versions, with `modRecipes` and `openMarket` on: no recipe can be crafted and sold at a profit.
+
 ## Fixes
 
 - **Sugar could be mispriced with Create installed.** With `modRecipes` on, the market could decide the cheapest way to make sugar was from honey bottles, price it at three times what sugar cane costs, and let you craft cane into sugar for a profit. The price search behind this is fixed, and it's fixed for every item that hands back a bottle or a bucket, not only sugar.
-- **Recipes that use fluids are now left out** when reading other mods' recipes. Fluids have no price, so a Create recipe that fills a bottle with honey used to price a honey bottle like an empty bottle. With `openMarket` on as well, that could leave sugar and glass bottles with no price at all.
 - With `modRecipes` on, an item a modded machine makes cheaply is now repriced even when the profit would only show up with no fee, so a Broker deal can't open a gap.
 
-## Create
-
-Tested with Create 6.0.8 on both Minecraft versions now, with `modRecipes` and `openMarket` on: every priced item trades and no recipe can be crafted and sold at a profit.
+Nothing changes for vanilla prices if you don't use `modRecipes`.
 
 ---
 

@@ -49,10 +49,10 @@ public final class MarketAudit {
             List<Item> inputs = new ArrayList<>(recipe.ingredients().size());
             boolean buyable = true;
 
-            for (List<Item> choices : recipe.ingredients()) {
+            for (MarketCatalog.Slot slot : recipe.ingredients()) {
                 double cheapest = Double.MAX_VALUE;
                 Item cheapestItem = null;
-                for (Item choice : choices) {
+                for (Item choice : slot.choices()) {
                     if (!catalog.isTradeable(choice)) {
                         continue; // no merchant sells it, so it can't be bought
                     }
@@ -66,7 +66,7 @@ public final class MarketAudit {
                     buyable = false; // an input cannot be bought, so the loop cannot be started
                     break;
                 }
-                cost += cheapest;
+                cost += cheapest * slot.count();
                 inputs.add(cheapestItem);
             }
 
