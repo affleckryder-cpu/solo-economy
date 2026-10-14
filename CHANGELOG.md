@@ -1,3 +1,15 @@
+# Solo Economy 0.6.1 for Forge 1.20.1
+
+**Minecraft 1.20.1 · Forge 47 or newer · Java 17**
+
+## Russian
+
+Solo Economy now speaks Russian. Pick Русский under Options → Language and the whole mod follows: the market, the bank, every merchant, the commands, stock certificates and the settings page.
+
+A few names were shortened to fit the market screen. If any wording reads oddly, leave a comment with the line and a better one.
+
+---
+
 # Solo Economy 0.6.0 for Forge 1.20.1
 
 **Minecraft 1.20.1 · Forge 47 or newer · Java 17**
