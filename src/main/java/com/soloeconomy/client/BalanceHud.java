@@ -27,16 +27,24 @@ public final class BalanceHud {
         if (minecraft.player == null || minecraft.options.hideGui) {
             return;
         }
-        ClientConfig.Corner corner = ClientConfig.INSTANCE.balanceCorner.get();
-        if (minecraft.screen instanceof MarketScreen || corner == ClientConfig.Corner.HIDDEN) {
+        // The stall shows the balance in its header, and the settings screen draws its own preview.
+        if (minecraft.screen instanceof MarketScreen || minecraft.screen instanceof BalanceSettingsScreen) {
+            return;
+        }
+        draw(graphics, ClientConfig.INSTANCE.balanceCorner.get(),
+                ClientConfig.INSTANCE.balanceOffsetX.get(), ClientConfig.INSTANCE.balanceOffsetY.get());
+    }
+
+    /** Draws the readout where these settings put it. */
+    public static void draw(GuiGraphics graphics, ClientConfig.Corner corner, int offsetX, int offsetY) {
+        Minecraft minecraft = Minecraft.getInstance();
+        if (corner == ClientConfig.Corner.HIDDEN) {
             return;
         }
 
         String text = Long.toString(ClientMarketState.balance() / EconomyAccount.CENTS_PER_EMERALD);
         int textWidth = minecraft.font.width(text);
         int boxWidth = 22 + textWidth + 6;
-        int offsetX = ClientConfig.INSTANCE.balanceOffsetX.get();
-        int offsetY = ClientConfig.INSTANCE.balanceOffsetY.get();
         boolean left = corner == ClientConfig.Corner.TOP_LEFT || corner == ClientConfig.Corner.BOTTOM_LEFT;
         boolean bottom = corner == ClientConfig.Corner.BOTTOM_LEFT || corner == ClientConfig.Corner.BOTTOM_RIGHT;
         int x = left ? offsetX : graphics.guiWidth() - boxWidth - offsetX;

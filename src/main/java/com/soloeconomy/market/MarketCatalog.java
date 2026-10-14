@@ -135,6 +135,19 @@ public final class MarketCatalog {
         return primitivePrices.getOrDefault(item, 0.0D);
     }
 
+    /** What one unit is worth in raw materials at base prices. Zero for anything without a price. */
+    public double baseValue(Item item) {
+        Bundle bundle = bundles.get(item);
+        if (bundle == null) {
+            return 0.0D;
+        }
+        double total = 0.0D;
+        for (Map.Entry<Item, Double> part : bundle.contents().entrySet()) {
+            total += part.getValue() * primitivePrice(part.getKey());
+        }
+        return total;
+    }
+
     /**
      * Equilibrium stock of a primitive, in item units.
      *

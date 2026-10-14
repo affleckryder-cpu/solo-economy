@@ -8,6 +8,8 @@ import net.minecraftforge.api.distmarker.Dist;
 import net.minecraftforge.client.event.RegisterGuiOverlaysEvent;
 import net.minecraftforge.client.gui.overlay.VanillaGuiOverlay;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
+import net.minecraftforge.client.ConfigScreenHandler;
+import net.minecraftforge.fml.ModList;
 import net.minecraftforge.fml.common.Mod;
 import net.minecraftforge.fml.event.lifecycle.FMLClientSetupEvent;
 
@@ -20,6 +22,10 @@ public final class SoloEconomyClient {
     @SubscribeEvent
     public static void onClientSetup(FMLClientSetupEvent event) {
         event.enqueueWork(() -> MenuScreens.register(ModMenus.MARKET.get(), MarketScreen::new));
+        // Mods list -> Solo Economy -> Config opens the balance display settings.
+        ModList.get().getModContainerById(SoloEconomy.MOD_ID).ifPresent(container -> container.registerExtensionPoint(
+                ConfigScreenHandler.ConfigScreenFactory.class,
+                () -> new ConfigScreenHandler.ConfigScreenFactory((minecraft, parent) -> new BalanceSettingsScreen(parent))));
     }
 
     @SubscribeEvent

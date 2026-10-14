@@ -2,9 +2,11 @@ package com.soloeconomy.registry;
 
 import com.soloeconomy.SoloEconomy;
 import com.soloeconomy.block.MarketStallBlock;
+import com.soloeconomy.item.StockCertificateItem;
 
 import net.minecraft.world.item.BlockItem;
 import net.minecraft.world.item.Item;
+import net.minecraft.world.item.Rarity;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.SoundType;
 import net.minecraft.world.level.block.state.BlockBehaviour;
@@ -30,6 +32,9 @@ public final class ModBlocks {
 
     public static final RegistryObject<Item> MARKET_STALL_ITEM = ITEMS.register("market_stall",
             () -> new BlockItem(MARKET_STALL.get(), new Item.Properties()));
+
+    public static final RegistryObject<Item> STOCK_CERTIFICATE = ITEMS.register("stock_certificate",
+            () -> new StockCertificateItem(new Item.Properties().stacksTo(16).rarity(Rarity.UNCOMMON)));
 
     private ModBlocks() {
     }

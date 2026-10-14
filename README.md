@@ -47,6 +47,11 @@ from gaming the prices.
 there, and it unlocks for buying from then on. Until then its row is greyed out and marked Locked.
 Selling is never locked.
 
+**Stock certificates** turn up in loot chests (about one in four dungeon, temple, treasure,
+stronghold, bastion and End city chests). Using one unlocks a random good from the most valuable
+quarter of what you haven't found yet. With nothing left to unlock, it is cashed in for 10
+emeralds, times `priceMultiplier`.
+
 ## How prices work
 
 Each **primitive** has a base price and a stock level. Its price is a pure function of stock:
@@ -199,7 +204,8 @@ keys `merchant.soloeconomy.<id>` and `merchant.soloeconomy.<id>.desc`.
 
 ### The balance display
 
-`config/soloeconomy-client.toml` is each player's own display setting, and applies as soon as it is saved:
+Each player sets this for themselves in game, under **Mods → Solo Economy → Config**, with a live
+preview. It is stored in `config/soloeconomy-client.toml`, which also applies as soon as it is saved:
 
 | Setting | Default | What it does |
 | --- | --- | --- |
@@ -239,7 +245,7 @@ On 1.21.1, `-PwithCreate` adds Create to the dev runs without shipping it.
 
 ## Tests
 
-`runGameTestServer` runs sixteen GameTests against the real recipe set and exits non-zero on failure:
+`runGameTestServer` runs seventeen GameTests against the real recipe set and exits non-zero on failure:
 
 | test | guards against |
 | --- | --- |
@@ -257,6 +263,7 @@ On 1.21.1, `-PwithCreate` adds Create to the dev runs without shipping it.
 | netherite gear is priced from smithing | smithing recipes being skipped, leaving netherite gear untradeable |
 | tangled recipes do not stall the catalog | recipe loops making the price book take for ever, leaving worlds stuck at 100% |
 | huge recipe sets are priced in seconds | a big modpack's recipes making the world look stuck on load |
+| stock certificates unlock rare goods | certificates unlocking cheap goods, never dropping, or doing nothing |
 | broker deals never pay to flip | a fee-free buy that sells straight back for more |
 | mod recipes price machine outputs | modded recipes read when off, or chance outputs counted as certain |
 

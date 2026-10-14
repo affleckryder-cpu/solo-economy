@@ -19,7 +19,10 @@ public final class ModCreativeTabs {
             () -> CreativeModeTab.builder()
                     .title(Component.translatable("itemGroup.soloeconomy"))
                     .icon(() -> new ItemStack(ModBlocks.MARKET_STALL_ITEM.get()))
-                    .displayItems((params, output) -> output.accept(ModBlocks.MARKET_STALL_ITEM.get()))
+                    .displayItems((params, output) -> {
+                        output.accept(ModBlocks.MARKET_STALL_ITEM.get());
+                        output.accept(ModBlocks.STOCK_CERTIFICATE.get());
+                    })
                     .build());
 
     private ModCreativeTabs() {
