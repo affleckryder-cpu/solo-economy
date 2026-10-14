@@ -9,6 +9,7 @@ import com.soloeconomy.market.Discovery;
 import com.soloeconomy.market.EconomyAccount;
 import com.soloeconomy.market.MarketAudit;
 import com.soloeconomy.market.MarketCatalog;
+import com.soloeconomy.market.StockCertificates;
 import com.soloeconomy.market.MarketData;
 import com.soloeconomy.market.MerchantLoader;
 
@@ -571,6 +572,64 @@ public final class EconomyGameTests {
             }
         } finally {
             EconomyConfig.INSTANCE.modRecipes.set(saved);
+        }
+        helper.succeed();
+    }
+
+    /**
+     * A stock certificate unlocks one of the most valuable goods the player hasn't found, and pays
+     * out emeralds instead once there is nothing left to unlock.
+     */
+    @GameTest(template = TEMPLATE)
+    public static void stockCertificatesUnlockRareGoods(GameTestHelper helper) {
+        if (net.neoforged.fml.ModList.get().isLoaded("create")) {
+            helper.succeed(); // Create sends a mock player packets it can't receive, crashing the test server
+            return;
+        }
+        MinecraftServer server = helper.getLevel().getServer();
+        boolean savedOpen = EconomyConfig.INSTANCE.openMarket.get();
+        boolean savedDiscovery = EconomyConfig.INSTANCE.requireDiscovery.get();
+        EconomyConfig.INSTANCE.openMarket.set(false);
+        EconomyConfig.INSTANCE.requireDiscovery.set(true);
+        ServerEvents.rebuildCatalog(server);
+        try {
+            ServerPlayer player = helper.makeMockServerPlayerInLevel();
+            MarketCatalog catalog = MarketCatalog.active();
+            Item unlocked = StockCertificates.redeem(player);
+            if (unlocked == null || !Discovery.canBuy(player, unlocked)) {
+                helper.fail("A certificate did not unlock anything");
+                return;
+            }
+            int all = catalog.tradeableItems().size();
+            long richer = catalog.tradeableItems().stream()
+                    .filter(item -> catalog.baseValue(item) > catalog.baseValue(unlocked)).count();
+            if (richer >= (all + 3) / 4) {
+                helper.fail(unlocked + " is not one of the most valuable goods");
+            }
+
+            EconomyConfig.INSTANCE.requireDiscovery.set(false); // everything is unlocked: it cashes in
+            long before = EconomyAccount.balance(player);
+            if (StockCertificates.redeem(player) != null
+                    || EconomyAccount.balance(player) - before != StockCertificates.cashValue()) {
+                helper.fail("With nothing to unlock, a certificate did not pay out");
+            }
+            var dungeon = server.reloadableRegistries().getLootTable(net.minecraft.resources.ResourceKey.create(
+                    net.minecraft.core.registries.Registries.LOOT_TABLE, ResourceLocation.withDefaultNamespace("chests/simple_dungeon")));
+            // A quarter of dungeon chests: two hundred without one would be a broken loot hook, not bad luck.
+            var params = new net.minecraft.world.level.storage.loot.LootParams.Builder(helper.getLevel())
+                    .withParameter(net.minecraft.world.level.storage.loot.parameters.LootContextParams.ORIGIN, net.minecraft.world.phys.Vec3.ZERO)
+                    .create(net.minecraft.world.level.storage.loot.parameters.LootContextParamSets.CHEST);
+            boolean found = false;
+            for (int i = 0; i < 200 && !found; i++) {
+                found = dungeon.getRandomItems(params).stream().anyMatch(stack -> stack.is(com.soloeconomy.registry.ModBlocks.STOCK_CERTIFICATE.get()));
+            }
+            if (!found) {
+                helper.fail("No stock certificate in 200 dungeon chests");
+            }
+        } finally {
+            EconomyConfig.INSTANCE.openMarket.set(savedOpen);
+            EconomyConfig.INSTANCE.requireDiscovery.set(savedDiscovery);
+            ServerEvents.rebuildCatalog(server);
         }
         helper.succeed();
     }

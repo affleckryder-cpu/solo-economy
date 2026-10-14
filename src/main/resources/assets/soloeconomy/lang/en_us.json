@@ -89,5 +89,18 @@
   "merchant.soloeconomy.deals": "Deals",
   "merchant.soloeconomy.deals.desc": "No fee on the marked price today. Goods on offer can be bought before you find them.",
   "gui.soloeconomy.deal_offer": "Broker deal: no fee to buy today",
-  "gui.soloeconomy.deal_wanted": "Broker deal: no fee when you sell today"
+  "gui.soloeconomy.deal_wanted": "Broker deal: no fee when you sell today",
+  "item.soloeconomy.stock_certificate": "Stock Certificate",
+  "item.soloeconomy.stock_certificate.desc": "Use it to unlock a rare good at the market",
+  "item.soloeconomy.stock_certificate.unlocked": "Your certificate is good for %s: you can buy it at the market now.",
+  "item.soloeconomy.stock_certificate.cashed": "Nothing left for it to unlock, so the certificate was cashed in for %s emeralds.",
+  "gui.soloeconomy.balance_settings": "Balance Display",
+  "gui.soloeconomy.corner": "Corner",
+  "gui.soloeconomy.corner.top_right": "Top right",
+  "gui.soloeconomy.corner.top_left": "Top left",
+  "gui.soloeconomy.corner.bottom_right": "Bottom right",
+  "gui.soloeconomy.corner.bottom_left": "Bottom left",
+  "gui.soloeconomy.corner.hidden": "Hidden",
+  "gui.soloeconomy.offset_x": "From the side",
+  "gui.soloeconomy.offset_y": "From the top or bottom"
 }

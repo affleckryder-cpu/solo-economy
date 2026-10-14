@@ -1,3 +1,27 @@
+# Solo Economy 0.6.0
+
+**Minecraft 1.21.1 · NeoForge (built on 21.1.209) · Java 21**
+
+## Stock certificates
+
+A new item, found in loot chests: dungeons, mineshafts, temples, shipwreck and buried treasure, bastions, strongholds, mansions, End cities, ancient cities, outposts and ruined portals. About one chest in four has one.
+
+**Use it** (right-click) and it unlocks a rare good at the market: one of the most valuable things you haven't found yet, picked at random from the top quarter. A trident, a heart of the sea, an elytra, that kind of thing. You can buy it from then on, same as if you'd found it yourself.
+
+Exploring now pays off at the market, not just in what's in the chest.
+
+Once there's nothing left for a certificate to unlock (or if `requireDiscovery` is off), it's cashed in for 10 emeralds instead, scaled by `priceMultiplier`. So a certificate is never a dud.
+
+They stack to 16 and show up in the Solo Economy creative tab.
+
+## Balance display settings in game
+
+The balance display can now be moved from inside the game: **Mods → Solo Economy → Config**. Pick a corner (or Hidden) and how far from the edges it sits, and you'll see it move as you change it. Changes save when you press Done.
+
+The settings still live in `config/soloeconomy-client.toml` if you'd rather edit the file.
+
+---
+
 # Solo Economy 0.5.1
 
 **Minecraft 1.21.1 · NeoForge (built on 21.1.209) · Java 21**

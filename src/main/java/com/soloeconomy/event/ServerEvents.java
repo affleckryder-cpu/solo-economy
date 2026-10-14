@@ -8,12 +8,17 @@ import com.soloeconomy.market.EconomyAccount;
 import com.soloeconomy.market.MarketCatalog;
 import com.soloeconomy.market.MerchantLoader;
 import com.soloeconomy.registry.ModAttachments;
+import com.soloeconomy.registry.ModBlocks;
 
 import net.minecraft.server.MinecraftServer;
+import net.minecraft.world.level.storage.loot.LootPool;
+import net.minecraft.world.level.storage.loot.entries.LootItem;
+import net.minecraft.world.level.storage.loot.predicates.LootItemRandomChanceCondition;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.item.Item;
 import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.fml.common.EventBusSubscriber;
+import net.neoforged.neoforge.event.LootTableLoadEvent;
 import net.neoforged.neoforge.event.AddReloadListenerEvent;
 import net.neoforged.neoforge.event.OnDatapackSyncEvent;
 import net.neoforged.neoforge.event.RegisterCommandsEvent;
@@ -23,6 +28,7 @@ import net.neoforged.neoforge.event.server.ServerStoppedEvent;
 
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * Server lifecycle wiring: keep the price book in step with the loaded datapacks and recipes,
@@ -86,6 +92,25 @@ public final class ServerEvents {
     @SubscribeEvent
     public static void onServerStopped(ServerStoppedEvent event) {
         MarketCatalog.setActive(MarketCatalog.empty());
+    }
+
+    /** Chests a stock certificate can turn up in, and how often. */
+    private static final Set<String> CERTIFICATE_CHESTS = Set.of("simple_dungeon", "abandoned_mineshaft",
+            "desert_pyramid", "jungle_temple", "shipwreck_treasure", "buried_treasure", "bastion_treasure",
+            "stronghold_corridor", "woodland_mansion", "end_city_treasure", "ancient_city", "pillager_outpost",
+            "ruined_portal");
+    private static final float CERTIFICATE_CHANCE = 0.25F;
+
+    @SubscribeEvent
+    public static void onLootTableLoad(LootTableLoadEvent event) {
+        String name = event.getName().toString();
+        if (name.startsWith("minecraft:chests/") && CERTIFICATE_CHESTS.contains(name.substring("minecraft:chests/".length()))) {
+            event.getTable().addPool(LootPool.lootPool()
+                    .name("soloeconomy:stock_certificate")
+                    .when(LootItemRandomChanceCondition.randomChance(CERTIFICATE_CHANCE))
+                    .add(LootItem.lootTableItem(ModBlocks.STOCK_CERTIFICATE.get()))
+                    .build());
+        }
     }
 
     public static void rebuildCatalog(MinecraftServer server) {

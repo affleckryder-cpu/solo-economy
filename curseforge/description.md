@@ -23,6 +23,9 @@ A block that opens the market. It works on its own, and a villager can take it a
 ### 🧑‍💼 Broker villager
 A new villager profession. A Broker working a stall cuts that stall's trading fees by a quarter, and brings **daily deals**: three goods with no fee to buy and three with no fee to sell, changing every in-game day.
 
+### 📜 Stock certificates
+Found in loot chests: dungeons, temples, treasure, strongholds, bastions, End cities and more. **Use one to unlock a rare good** at the market, picked from the most valuable things you haven't found yet. Nothing left to unlock? It cashes in for emeralds instead.
+
 ### 💎 Emerald account
 Emeralds are the currency, kept as a balance rather than in your inventory, so a big sale never buries you in stacks. **Deposit** and **Withdraw** at any stall, always 1:1. Your balance is shown in the corner of your screen.
 
@@ -112,7 +115,7 @@ This is an early release.
 
 - **Not yet tradeable:** potions, spawn eggs, music discs, pottery sherds and armour trims.
 - **Modded items** are traded with `openMarket` on or when a datapack lists them under a merchant. Items from modded machines and workbenches need `modRecipes` on, and some may need a price set by hand. **Create** works out of the box with both settings on: zinc, brass and fluid recipes are priced.
-- **The balance display** can be moved to any corner, or hidden, in `config/soloeconomy-client.toml` if it overlaps a minimap.
+- **The balance display** can be moved to any corner, or hidden, under **Mods → Solo Economy → Config** if it overlaps a minimap.
 - **Built for single-player.** On a server, all players share one market.
 - **English only.**
 
