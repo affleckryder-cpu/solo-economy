@@ -121,6 +121,9 @@ This is an early release.
 
 ---
 
+## Languages
+English and Russian.
+
 ## Requirements
 
 - Minecraft **1.21.1** on **NeoForge** (built on 21.1.209), or
