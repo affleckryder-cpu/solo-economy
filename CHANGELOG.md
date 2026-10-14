@@ -1,3 +1,24 @@
+# Solo Economy 0.5.1
+
+**Minecraft 1.21.1 · NeoForge (built on 21.1.209) · Java 21**
+
+## Move the balance display
+
+The emerald balance in the corner of the screen can be moved, so it stops covering your minimap.
+
+Open `config/soloeconomy-client.toml` (it appears after you run the game once with this version) and set:
+
+- `corner` to `TOP_RIGHT`, `TOP_LEFT`, `BOTTOM_RIGHT`, `BOTTOM_LEFT`, or `HIDDEN` to turn it off
+- `offsetX` and `offsetY` to nudge it away from the edges. About 45 for `offsetY` clears the hotbar in a bottom corner.
+
+Changes apply as soon as you save the file. No restart needed, and it works on servers too, since it's your own display setting.
+
+## Big modpacks
+
+Checked that the price book stays fast on a huge recipe set: 40,000 extra recipes, tangled on purpose, are priced in about three seconds. There's now a test that keeps it that way.
+
+---
+
 # Solo Economy 0.5.0
 
 **Minecraft 1.21.1 · NeoForge (built on 21.1.209) · Java 21**

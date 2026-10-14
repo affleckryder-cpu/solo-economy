@@ -112,7 +112,7 @@ This is an early release.
 
 - **Not yet tradeable:** potions, spawn eggs, music discs, pottery sherds and armour trims.
 - **Modded items** are traded with `openMarket` on or when a datapack lists them under a merchant. Items from modded machines and workbenches need `modRecipes` on, and some may need a price set by hand. **Create** works out of the box with both settings on: zinc, brass and fluid recipes are priced.
-- **The balance display** sits in the top-right corner and may overlap a minimap.
+- **The balance display** can be moved to any corner, or hidden, in `config/soloeconomy-client.toml` if it overlaps a minimap.
 - **Built for single-player.** On a server, all players share one market.
 - **English only.**
 
