@@ -197,6 +197,15 @@ that bundles exist to close.
 replace a merchant, add new ones, or start from nothing. Names and descriptions come from the lang
 keys `merchant.soloeconomy.<id>` and `merchant.soloeconomy.<id>.desc`.
 
+### The balance display
+
+`config/soloeconomy-client.toml` is each player's own display setting, and applies as soon as it is saved:
+
+| Setting | Default | What it does |
+| --- | --- | --- |
+| `corner` | TOP_RIGHT | Where the emerald balance sits: `TOP_RIGHT`, `TOP_LEFT`, `BOTTOM_RIGHT`, `BOTTOM_LEFT` or `HIDDEN`. |
+| `offsetX`, `offsetY` | 4 | Distance from the screen edges, in GUI pixels. |
+
 ### Other mods' items
 
 Items crafted, smelted, stonecut or upgraded at a smithing table from priced materials get a price automatically. With
@@ -230,7 +239,7 @@ On 1.21.1, `-PwithCreate` adds Create to the dev runs without shipping it.
 
 ## Tests
 
-`runGameTestServer` runs fifteen GameTests against the real recipe set and exits non-zero on failure:
+`runGameTestServer` runs sixteen GameTests against the real recipe set and exits non-zero on failure:
 
 | test | guards against |
 | --- | --- |
@@ -247,6 +256,7 @@ On 1.21.1, `-PwithCreate` adds Create to the dev runs without shipping it.
 | daily dumping hits diminishing returns | a 1000-logs-a-day farm earning 8,200 emeralds a month |
 | netherite gear is priced from smithing | smithing recipes being skipped, leaving netherite gear untradeable |
 | tangled recipes do not stall the catalog | recipe loops making the price book take for ever, leaving worlds stuck at 100% |
+| huge recipe sets are priced in seconds | a big modpack's recipes making the world look stuck on load |
 | broker deals never pay to flip | a fee-free buy that sells straight back for more |
 | mod recipes price machine outputs | modded recipes read when off, or chance outputs counted as certain |
 
@@ -270,7 +280,6 @@ To test against Create, which ships with obfuscated names a dev run can't load: 
 ## Known limitations
 
 - Potions, spawn eggs, music discs, pottery sherds and armour trims have no price.
-- The balance display sits in the top-right corner and can't be moved yet.
 - Built for single-player. On a server, every player shares one market.
 - English only.
 

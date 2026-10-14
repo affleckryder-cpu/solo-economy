@@ -1,5 +1,6 @@
 package com.soloeconomy;
 
+import com.soloeconomy.config.ClientConfig;
 import com.soloeconomy.config.EconomyConfig;
 import com.soloeconomy.network.ModNetwork;
 import com.soloeconomy.registry.ModBlocks;
@@ -34,5 +35,6 @@ public class SoloEconomy {
         ModNetwork.register();
 
         ModLoadingContext.get().registerConfig(ModConfig.Type.SERVER, EconomyConfig.SPEC);
+        ModLoadingContext.get().registerConfig(ModConfig.Type.CLIENT, ClientConfig.SPEC);
     }
 }

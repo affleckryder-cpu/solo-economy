@@ -527,6 +527,51 @@ public final class EconomyGameTests {
         helper.succeed();
     }
 
+    /**
+     * A big modpack's worth of recipes - tens of thousands, tangled and full of free lunches - must
+     * still be priced in seconds, with the modded-recipe checks on.
+     *
+     * <p>Guards against: the price book taking so long on a large pack that the world looks stuck.
+     */
+    @GameTest(template = TEMPLATE)
+    public static void hugeRecipeSetsArePricedInSeconds(GameTestHelper helper) {
+        MinecraftServer server = helper.getLevel().getServer();
+        List<Item> items = net.minecraft.core.registries.BuiltInRegistries.ITEM.stream().filter(item -> item != Items.AIR).toList();
+        java.util.Random random = new java.util.Random(42L);
+        RecipeManager recipes = new RecipeManager();
+        List<Recipe<?>> all = new ArrayList<>(server.getRecipeManager().getRecipes());
+        for (int i = 0; i < 40_000; i++) {
+            NonNullList<Ingredient> inputs = NonNullList.create();
+            for (int slot = random.nextInt(9); slot >= 0; slot--) {
+                // One in five slots takes any of a big group, like a tag.
+                Item[] choices = new Item[random.nextInt(5) == 0 ? 2 + random.nextInt(62) : 1];
+                for (int c = 0; c < choices.length; c++) {
+                    choices[c] = items.get(random.nextInt(items.size()));
+                }
+                inputs.add(Ingredient.of(choices));
+            }
+            all.add(new net.minecraft.world.item.crafting.ShapelessRecipe(new ResourceLocation(SoloEconomy.MOD_ID, "huge_" + i),
+                    "", net.minecraft.world.item.crafting.CraftingBookCategory.MISC,
+                    new ItemStack(items.get(random.nextInt(items.size())), 1 + random.nextInt(4)), inputs));
+        }
+        recipes.replaceRecipes(all);
+
+        boolean saved = EconomyConfig.INSTANCE.modRecipes.get();
+        BasePriceLoader.Parsed seeds = BasePriceLoader.current();
+        try {
+            EconomyConfig.INSTANCE.modRecipes.set(true);
+            long start = System.nanoTime();
+            MarketCatalog.build(seeds.prices(), seeds.untradeable(), MerchantLoader.current(), recipes, server.registryAccess());
+            long millis = (System.nanoTime() - start) / 1_000_000L;
+            if (millis > 15_000L) {
+                helper.fail("Pricing 40,000 extra recipes took " + millis + " ms");
+            }
+        } finally {
+            EconomyConfig.INSTANCE.modRecipes.set(saved);
+        }
+        helper.succeed();
+    }
+
     private static double raw(MarketCatalog catalog, Item item) {
         double total = 0.0D;
         for (var part : catalog.bundle(item).contents().entrySet()) {
