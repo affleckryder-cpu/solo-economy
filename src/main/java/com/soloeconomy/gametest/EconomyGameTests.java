@@ -9,6 +9,8 @@ import com.soloeconomy.market.Discovery;
 import com.soloeconomy.market.EconomyAccount;
 import com.soloeconomy.market.MarketAudit;
 import com.soloeconomy.market.MarketCatalog;
+import com.soloeconomy.network.MarketListingsPayload;
+import com.soloeconomy.network.Listing;
 import com.soloeconomy.market.StockCertificates;
 import com.soloeconomy.market.MarketData;
 import com.soloeconomy.market.MerchantLoader;
@@ -626,6 +628,30 @@ public final class EconomyGameTests {
             EconomyConfig.INSTANCE.openMarket.set(savedOpen);
             EconomyConfig.INSTANCE.requireDiscovery.set(savedDiscovery);
             ServerEvents.rebuildCatalog(server);
+        }
+        helper.succeed();
+    }
+
+    /**
+     * The biggest market reply must fit in one packet and come back intact.
+     *
+     * <p>Guards against: a cap on listings, which disconnected a player whose open market had 2,069
+     * priced items.
+     */
+    @GameTest(template = TEMPLATE)
+    public static void hugeMarketsFitInOnePacket(GameTestHelper helper) {
+        List<Listing> many = java.util.Collections.nCopies(MarketListingsPayload.MAX_LISTINGS,
+                new Listing(Items.NETHERITE_UPGRADE_SMITHING_TEMPLATE, 99999.99F, 99999.99F, 1.0F, true, (byte) 2));
+        MarketListingsPayload sent = new MarketListingsPayload(List.of(), many, List.of(), 0.1F, Long.MAX_VALUE);
+        var buf = new net.minecraft.network.FriendlyByteBuf(io.netty.buffer.Unpooled.buffer());
+        sent.encode(buf);
+        int size = buf.readableBytes();
+        MarketListingsPayload back = MarketListingsPayload.decode(buf);
+        if (size > 1_000_000) {
+            helper.fail("The largest market reply is " + size + " bytes, over the 1 MB packet limit");
+        }
+        if (back.listings().size() != many.size() || !back.listings().get(many.size() - 1).equals(many.get(0))) {
+            helper.fail("The largest market reply did not survive the trip");
         }
         helper.succeed();
     }

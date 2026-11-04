@@ -13,6 +13,14 @@ import java.util.List;
 public record MarketListingsPayload(List<Merchant> merchants, List<Listing> listings, List<Listing> carried,
                                     float spread, long balance) {
 
+    /**
+     * The most goods one reply carries. A listing is about 18 bytes, so this stays well inside the
+     * 1 MB packet limit. It was 2,048 once, and an open-market modpack with 2,069 priced items
+     * disconnected the player as soon as the stall opened.
+     */
+    public static final int MAX_LISTINGS = 20_000;
+
+
     public void encode(FriendlyByteBuf buf) {
         buf.writeCollection(merchants, (b, merchant) -> merchant.encode(b));
         buf.writeCollection(listings, (b, listing) -> listing.encode(b));

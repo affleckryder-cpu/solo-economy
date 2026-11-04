@@ -1,3 +1,15 @@
+# Solo Economy 0.6.2 for Forge 1.20.1
+
+**Minecraft 1.20.1 · Forge 47 or newer · Java 17**
+
+## A safety limit for very large markets
+
+The NeoForge 1.21.1 version could disconnect you on opening the market in a modpack with more than 2,048 priced goods. This Forge version never had that problem, but its market had no limit at all, so a big enough pack could in principle send more than one message can hold.
+
+The market now shows up to 20,000 goods at once, well under that size. If a pack ever goes past that, the search box finds the rest. Nothing changes for any pack you're likely to play.
+
+---
+
 # Solo Economy 0.6.1 for Forge 1.20.1
 
 **Minecraft 1.20.1 · Forge 47 or newer · Java 17**
