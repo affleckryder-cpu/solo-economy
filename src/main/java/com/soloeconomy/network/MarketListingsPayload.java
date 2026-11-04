@@ -19,13 +19,21 @@ import java.util.List;
 public record MarketListingsPayload(List<Merchant> merchants, List<Listing> listings, List<Listing> carried,
                                     float spread, long balance) implements CustomPacketPayload {
 
+    /**
+     * The most goods one reply carries. A listing is about 18 bytes, so this stays well inside the
+     * 1 MB packet limit. It was 2,048 once, and an open-market modpack with 2,069 priced items
+     * disconnected the player as soon as the stall opened.
+     */
+    public static final int MAX_LISTINGS = 20_000;
+
+
     public static final Type<MarketListingsPayload> TYPE = new Type<>(
             ResourceLocation.fromNamespaceAndPath(SoloEconomy.MOD_ID, "market_listings"));
 
     public static final StreamCodec<RegistryFriendlyByteBuf, MarketListingsPayload> STREAM_CODEC =
             StreamCodec.composite(
-                    Merchant.STREAM_CODEC.apply(ByteBufCodecs.list(64)), MarketListingsPayload::merchants,
-                    Listing.STREAM_CODEC.apply(ByteBufCodecs.list(2048)), MarketListingsPayload::listings,
+                    Merchant.STREAM_CODEC.apply(ByteBufCodecs.list(256)), MarketListingsPayload::merchants,
+                    Listing.STREAM_CODEC.apply(ByteBufCodecs.list(MAX_LISTINGS)), MarketListingsPayload::listings,
                     Listing.STREAM_CODEC.apply(ByteBufCodecs.list(64)), MarketListingsPayload::carried,
                     ByteBufCodecs.FLOAT, MarketListingsPayload::spread,
                     ByteBufCodecs.VAR_LONG, MarketListingsPayload::balance,

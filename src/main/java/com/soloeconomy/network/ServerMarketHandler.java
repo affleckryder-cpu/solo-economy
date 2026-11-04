@@ -82,6 +82,9 @@ public final class ServerMarketHandler {
             if (payload.inventoryOnly() && countInInventory(player.getInventory(), item) <= 0) {
                 continue;
             }
+            if (listings.size() >= MarketListingsPayload.MAX_LISTINGS) {
+                break; // searching narrows it down; the rest are a scroll too far anyway
+            }
             listings.add(listing(data, player, menu, item, gameTime));
         }
 

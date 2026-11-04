@@ -1,3 +1,15 @@
+# Solo Economy 0.6.2
+
+**Minecraft 1.21.1 · NeoForge (built on 21.1.209) · Java 21**
+
+## Fixed: disconnected when opening the market in big modpacks
+
+With `openMarket = true` in a large modpack, opening a Market Stall could kick you from the world on the spot. It happened once the market had more than 2,048 priced goods: the list was longer than the message carrying it was allowed to be, so the connection dropped.
+
+The market now carries up to 20,000 goods at once, which is still a small message. If a pack ever goes past that, the search box finds the rest.
+
+---
+
 # Solo Economy 0.6.1
 
 **Minecraft 1.21.1 · NeoForge (built on 21.1.209) · Java 21**
