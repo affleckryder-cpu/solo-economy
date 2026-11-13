@@ -21,7 +21,10 @@ Multiplayer servers get an economy for free: other players. Solo worlds don't, a
 A block that opens the market. It works on its own, and a villager can take it as a job site.
 
 ### 🧑‍💼 Broker villager
-A new villager profession. A Broker working a stall cuts that stall's trading fees by a quarter, so hiring one is a real upgrade rather than decoration.
+A new villager profession. A Broker working a stall cuts that stall's trading fees by a quarter, and brings **daily deals**: three goods with no fee to buy and three with no fee to sell, changing every in-game day.
+
+### 📜 Stock certificates
+Found in loot chests: dungeons, temples, treasure, strongholds, bastions, End cities and more. **Use one to unlock a rare good** at the market, picked from the most valuable things you haven't found yet. Nothing left to unlock? It cashes in for emeralds instead.
 
 ### 💎 Emerald account
 Emeralds are the currency, kept as a balance rather than in your inventory, so a big sale never buries you in stacks. **Deposit** and **Withdraw** at any stall, always 1:1. Your balance is shown in the corner of your screen.
@@ -36,7 +39,7 @@ Not everything is for sale. Every tradeable item has someone with a reason to wa
 | Fisherman | fish, kelp, prismarine |
 | Woodcutter | logs, planks, chests |
 | Mason | stone, sand, clay, bricks |
-| Smith | ores, ingots, iron gear |
+| Smith | ores, ingots, iron and netherite gear |
 | Collector | diamonds, netherite, rare finds |
 | Cleric | mob drops and brewing ingredients |
 | Tailor | wool, leather, dyes |
@@ -52,7 +55,7 @@ Not everything is for sale. Every tradeable item has someone with a reason to wa
 - **Supply tooltips** tell you whether an item is oversupplied or in demand right now
 
 ### 📈 Prices that move
-- **259 tradeable items** in vanilla
+- **269 tradeable items** in vanilla
 - **Selling lowers the price, buying raises it.** A stack of diamonds moves the diamond price about 30%. Cheap goods like cobblestone have deep markets and barely move, but a double chest of it still will.
 - **Markets recover slowly**, about halfway back to normal in a week. Selling a stack now and then pays well; dumping a farm's output every day drives that price down and keeps it there.
 - **Bulk trades are priced unit by unit**, so selling 64 at once is never worse than selling them one at a time. There's no reason to click 64 times.
@@ -83,6 +86,7 @@ About 225 raw materials have set prices. Everything else is priced from the ingr
 | `priceMultiplier` | 1.0 | Scales every default price. Raise it to make emeralds go less far |
 | `requireDiscovery` | true | Players can only buy items they've carried to or sold at a stall |
 | `openMarket` | false | Adds a Store merchant that trades every item with a price, modded ones included |
+| `brokerDeals` | 3 | Fee-free goods to buy, and to sell, each day at a stall with a Broker |
 | `modRecipes` | false | Price items from other mods' recipes too (Create machines, modded workbenches) |
 | `priceOverrides` | [] | Per-item prices, easiest set with the command below |
 
@@ -109,20 +113,23 @@ About 225 raw materials have set prices. Everything else is priced from the ingr
 
 This is an early release.
 
-- **Placeholder art.** The stall and Broker textures are temporary.
-- **Not yet tradeable:** netherite tools and armour (smithing recipes aren't supported yet), potions, spawn eggs, music discs, pottery sherds and smithing templates.
-- **Modded items** are traded with `openMarket` on or when a datapack lists them under a merchant. Items from modded machines and workbenches need `modRecipes` on, and some may need a price set by hand.
-- **The balance display** sits in the top-right corner and may overlap a minimap.
+- **Not yet tradeable:** potions, spawn eggs, music discs, pottery sherds and armour trims.
+- **Modded items** are traded with `openMarket` on or when a datapack lists them under a merchant. Items from modded machines and workbenches need `modRecipes` on, and some may need a price set by hand. **Create** works out of the box with both settings on: zinc, brass and fluid recipes are priced.
+- **The balance display** can be moved to any corner, or hidden, under **Mods → Solo Economy → Config** if it overlaps a minimap.
 - **Built for single-player.** On a server, all players share one market.
-- **English only.**
 
 ---
 
+## Languages
+English and Russian.
+
 ## Requirements
 
-- Minecraft **1.21.1**
-- **NeoForge** (built on 21.1.209)
+- Minecraft **1.21.1** on **NeoForge** (built on 21.1.209), or
+- Minecraft **1.20.1** on **Forge** (47 or newer)
 - Required on **both** client and server
+
+On Forge 1.20.1 the config file is per world, not in the `config` folder: `saves/<world>/serverconfig/soloeconomy-server.toml`. It appears the first time you open that world. Put a copy in `defaultconfigs` to use it for new worlds.
 
 ---
 
