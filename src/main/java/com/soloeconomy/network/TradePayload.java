@@ -1,19 +1,19 @@
 package com.soloeconomy.network;
 
-import net.minecraft.core.registries.BuiltInRegistries;
-import net.minecraft.network.FriendlyByteBuf;
-import net.minecraft.world.item.Item;
+import com.soloeconomy.market.Good;
 
-/** Client asks to buy or sell a quantity of one item. The server re-prices it from scratch. */
-public record TradePayload(Item item, int count, boolean buying) {
+import net.minecraft.network.FriendlyByteBuf;
+
+/** Client asks to buy or sell a quantity of one good. The server re-prices it from scratch. */
+public record TradePayload(Good good, int count, boolean buying) {
 
     public void encode(FriendlyByteBuf buf) {
-        buf.writeId(BuiltInRegistries.ITEM, item);
+        good.encode(buf);
         buf.writeVarInt(count);
         buf.writeBoolean(buying);
     }
 
     public static TradePayload decode(FriendlyByteBuf buf) {
-        return new TradePayload(buf.readById(BuiltInRegistries.ITEM), buf.readVarInt(), buf.readBoolean());
+        return new TradePayload(Good.decode(buf), buf.readVarInt(), buf.readBoolean());
     }
 }

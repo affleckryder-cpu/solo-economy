@@ -7,6 +7,7 @@ import com.soloeconomy.market.BasePriceLoader;
 import com.soloeconomy.market.BrokerDeals;
 import com.soloeconomy.market.Discovery;
 import com.soloeconomy.market.EconomyAccount;
+import com.soloeconomy.market.Good;
 import com.soloeconomy.market.MarketAudit;
 import com.soloeconomy.market.MarketCatalog;
 import com.soloeconomy.network.MarketListingsPayload;
@@ -33,6 +34,10 @@ import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
+import net.minecraft.world.item.alchemy.PotionUtils;
+import net.minecraft.world.item.alchemy.Potions;
+import net.minecraft.network.chat.Component;
+import net.minecraftforge.common.brewing.BrewingRecipeRegistry;
 import net.minecraftforge.gametest.GameTestHolder;
 import net.minecraftforge.gametest.PrefixGameTestTemplate;
 
@@ -103,7 +108,7 @@ public final class EconomyGameTests {
         MarketCatalog catalog = buildCatalog(helper);
         double spread = EconomyConfig.INSTANCE.minimumSpread();
 
-        for (Item item : catalog.tradeableItems()) {
+        for (Good item : catalog.goods()) {
             for (int count : new int[] {1, 64}) {
                 MarketData market = new MarketData();
                 MarketData.Quote bought = market.commitBuy(item, count, 0L, spread);
@@ -139,7 +144,8 @@ public final class EconomyGameTests {
             buildCatalog(helper);
             double spread = config.minimumSpread();
 
-            for (Item item : List.of(Items.DIAMOND, Items.NETHER_STAR, Items.COBBLESTONE, Items.DIAMOND_BLOCK)) {
+            for (Good item : List.of(Good.of(Items.DIAMOND), Good.of(Items.NETHER_STAR), Good.of(Items.COBBLESTONE),
+                    Good.of(Items.DIAMOND_BLOCK))) {
                 MarketData market = new MarketData();
                 // Drain the market step by step, trying a one-unit round trip at every depth.
                 for (int drained = 0; drained < 40; drained++) {
@@ -174,17 +180,17 @@ public final class EconomyGameTests {
         double spread = EconomyConfig.INSTANCE.spread.get();
         MarketData market = new MarketData();
 
-        double blockSale = market.quoteSell(Items.DIAMOND_BLOCK, 1, 0L, spread).exactValue();
-        double nineSales = market.quoteSell(Items.DIAMOND, 9, 0L, spread).exactValue();
+        double blockSale = market.quoteSell(Good.of(Items.DIAMOND_BLOCK), 1, 0L, spread).exactValue();
+        double nineSales = market.quoteSell(Good.of(Items.DIAMOND), 9, 0L, spread).exactValue();
         // A block settles all nine diamonds at once, so it can pay a little less - never more.
         if (blockSale > nineSales + EPSILON || blockSale < nineSales * 0.9D) {
             helper.fail(String.format("A diamond block sells for %.3f but nine diamonds sell for %.3f",
                     blockSale, nineSales));
         }
 
-        double before = market.spotSellPrice(Items.DIAMOND, 0L, spread);
-        market.commitSell(Items.DIAMOND_BLOCK, 64, 0L, spread);
-        double after = market.spotSellPrice(Items.DIAMOND, 0L, spread);
+        double before = market.spotSellPrice(Good.of(Items.DIAMOND), 0L, spread);
+        market.commitSell(Good.of(Items.DIAMOND_BLOCK), 64, 0L, spread);
+        double after = market.spotSellPrice(Good.of(Items.DIAMOND), 0L, spread);
         if (after >= before) {
             helper.fail(String.format("Dumping diamond blocks left the diamond price at %.3f (was %.3f)",
                     after, before));
@@ -228,7 +234,7 @@ public final class EconomyGameTests {
         MarketData market = new MarketData();
 
         // Charged amounts must be the real price in hundredths, not rounded to whole emeralds.
-        MarketData.Quote bought = market.quoteBuy(Items.COBBLESTONE, 1, 0L, spread);
+        MarketData.Quote bought = market.quoteBuy(Good.of(Items.COBBLESTONE), 1, 0L, spread);
         long expected = (long) Math.ceil(bought.exactValue() * EconomyAccount.CENTS_PER_EMERALD);
         if (bought.cents() != expected) {
             helper.fail(String.format("One cobblestone is worth %.4f emeralds, so it should cost %d cents, charged %d",
@@ -238,7 +244,7 @@ public final class EconomyGameTests {
             helper.fail("One cobblestone cost a whole emerald or more: " + bought.cents() + " cents");
         }
 
-        MarketData.Quote sold = market.quoteSell(Items.COBBLESTONE, 8, 0L, spread);
+        MarketData.Quote sold = market.quoteSell(Good.of(Items.COBBLESTONE), 8, 0L, spread);
         if (sold.cents() <= 0L) {
             helper.fail("Selling 8 cobblestone paid nothing");
         }
@@ -257,8 +263,8 @@ public final class EconomyGameTests {
         double spread = EconomyConfig.INSTANCE.spread.get();
 
         MarketData original = new MarketData();
-        original.commitSell(Items.DIAMOND, 200, 0L, spread);
-        original.commitBuy(Items.OAK_LOG, 50, 0L, spread);
+        original.commitSell(Good.of(Items.DIAMOND), 200, 0L, spread);
+        original.commitBuy(Good.of(Items.OAK_LOG), 50, 0L, spread);
 
         MarketData loaded = MarketData.load(original.save(new CompoundTag()));
 
@@ -308,7 +314,7 @@ public final class EconomyGameTests {
                 helper.fail("/soloeconomy price minecraft:diamond did not run");
             }
             double spread = EconomyConfig.INSTANCE.spread.get();
-            double blockSale = new MarketData().quoteSell(Items.DIAMOND_BLOCK, 1, 0L, spread).exactValue();
+            double blockSale = new MarketData().quoteSell(Good.of(Items.DIAMOND_BLOCK), 1, 0L, spread).exactValue();
             if (MarketCatalog.active().primitivePrice(Items.DIAMOND) != 100.0D || blockSale < 9 * 100 * (1 - spread) * 0.8D) {
                 helper.fail(String.format("Override ignored: diamond %.2f, diamond block sells for %.2f",
                         MarketCatalog.active().primitivePrice(Items.DIAMOND), blockSale));
@@ -381,20 +387,30 @@ public final class EconomyGameTests {
 
     private static void checkDiscovery(GameTestHelper helper) {
         Player player = helper.makeMockPlayer(); // Forge 1.20.1 can't log a mock server player in
-        if (Discovery.canBuy(player, Items.DIAMOND)) {
+        if (Discovery.canBuy(player, Good.of(Items.DIAMOND))) {
             helper.fail("A new player can already buy diamonds");
         }
         player.getInventory().add(new ItemStack(Items.DIAMOND));
         player.getInventory().add(new ItemStack(Items.DIRT));
         Discovery.discoverCarried(player);
-        if (!Discovery.canBuy(player, Items.DIAMOND)) {
+        if (!Discovery.canBuy(player, Good.of(Items.DIAMOND))) {
             helper.fail("Carrying a diamond did not unlock buying diamonds");
         }
-        if (Discovery.canBuy(player, Items.DIAMOND_BLOCK)) {
+        if (Discovery.canBuy(player, Good.of(Items.DIAMOND_BLOCK))) {
             helper.fail("Carrying a diamond unlocked diamond blocks too");
         }
-        if (Discovery.canBuy(player, Items.DIRT)) {
+        if (Discovery.canBuy(player, Good.of(Items.DIRT))) {
             helper.fail("Dirt, which no merchant trades, was recorded as discovered");
+        }
+
+        player.getInventory().add(PotionUtils.setPotion(new ItemStack(Items.POTION), Potions.HEALING));
+        Discovery.discoverCarried(player);
+        if (!Discovery.canBuy(player, Good.potion(Items.POTION, Potions.HEALING))) {
+            helper.fail("Carrying a Potion of Healing did not unlock buying it");
+        }
+        if (Discovery.canBuy(player, Good.potion(Items.POTION, Potions.STRONG_HEALING))
+                || Discovery.canBuy(player, Good.potion(Items.SPLASH_POTION, Potions.HEALING))) {
+            helper.fail("Carrying one potion unlocked other potions too");
         }
     }
 
@@ -436,7 +452,7 @@ public final class EconomyGameTests {
         double week = 0.0D;
         double month = 0.0D;
         for (int day = 0; day < 30; day++) {
-            double paid = market.commitSell(Items.OAK_LOG, 1000, day * 24000L, spread).exactValue();
+            double paid = market.commitSell(Good.of(Items.OAK_LOG), 1000, day * 24000L, spread).exactValue();
             month += paid;
             if (day < 7) {
                 week += paid;
@@ -594,13 +610,13 @@ public final class EconomyGameTests {
         try {
             Player player = helper.makeMockPlayer();
             MarketCatalog catalog = MarketCatalog.active();
-            Item unlocked = StockCertificates.redeem(player);
+            Good unlocked = StockCertificates.redeem(player);
             if (unlocked == null || !Discovery.canBuy(player, unlocked)) {
                 helper.fail("A certificate did not unlock anything");
                 return;
             }
-            int all = catalog.tradeableItems().size();
-            long richer = catalog.tradeableItems().stream()
+            int all = catalog.goods().size();
+            long richer = catalog.goods().stream()
                     .filter(item -> catalog.baseValue(item) > catalog.baseValue(unlocked)).count();
             if (richer >= (all + 3) / 4) {
                 helper.fail(unlocked + " is not one of the most valuable goods");
@@ -641,7 +657,7 @@ public final class EconomyGameTests {
     @GameTest(template = TEMPLATE)
     public static void hugeMarketsFitInOnePacket(GameTestHelper helper) {
         List<Listing> many = java.util.Collections.nCopies(MarketListingsPayload.MAX_LISTINGS,
-                new Listing(Items.NETHERITE_UPGRADE_SMITHING_TEMPLATE, 99999.99F, 99999.99F, 1.0F, true, (byte) 2));
+                new Listing(Good.of(Items.NETHERITE_UPGRADE_SMITHING_TEMPLATE), 99999.99F, 99999.99F, 1.0F, true, (byte) 2));
         MarketListingsPayload sent = new MarketListingsPayload(List.of(), many, List.of(), 0.1F, Long.MAX_VALUE);
         var buf = new net.minecraft.network.FriendlyByteBuf(io.netty.buffer.Unpooled.buffer());
         sent.encode(buf);
@@ -652,6 +668,133 @@ public final class EconomyGameTests {
         }
         if (back.listings().size() != many.size() || !back.listings().get(many.size() - 1).equals(many.get(0))) {
             helper.fail("The largest market reply did not survive the trip");
+        }
+        helper.succeed();
+    }
+
+    /**
+     * Every potion is its own good, priced from how it is brewed.
+     *
+     * <p>Guards against: potions being one item to the market, which is why they couldn't be
+     * traded at all - a Potion of Healing and a Potion of Swiftness would have had one price.
+     */
+    @GameTest(template = TEMPLATE)
+    public static void potionsArePricedByBrewing(GameTestHelper helper) {
+        MarketCatalog catalog = buildCatalog(helper);
+        Good water = Good.potion(Items.POTION, Potions.WATER);
+        Good awkward = Good.potion(Items.POTION, Potions.AWKWARD);
+        Good healing = Good.potion(Items.POTION, Potions.HEALING);
+        Good strong = Good.potion(Items.POTION, Potions.STRONG_HEALING);
+        Good splash = Good.potion(Items.SPLASH_POTION, Potions.HEALING);
+        Good lingering = Good.potion(Items.LINGERING_POTION, Potions.HEALING);
+        Good arrow = Good.potion(Items.TIPPED_ARROW, Potions.HEALING);
+        for (Good good : List.of(water, awkward, healing, strong, splash, lingering, arrow)) {
+            if (!catalog.isTradeable(good)) {
+                helper.fail(good.key() + " is not for sale");
+                return;
+            }
+        }
+        if (catalog.bundle(Good.potion(Items.POTION, Potions.LUCK)) != null || catalog.bundle(Good.of(Items.POTION)) != null
+                || catalog.bundle(Good.potion(Items.TIPPED_ARROW, Potions.AWKWARD)) != null) {
+            helper.fail("A potion that can't be brewed has a price");
+        }
+        if (catalog.merchant("alchemist") == null || !catalog.merchant("alchemist").goods().contains(splash)) {
+            helper.fail("The Alchemist doesn't sell splash potions");
+        }
+
+        // A water bottle is its bottle; each brew adds a third of its ingredient and a sixtieth of blaze powder.
+        double bottle = catalog.baseValue(Good.of(Items.GLASS_BOTTLE));
+        double brew = catalog.baseValue(Good.of(Items.GLISTERING_MELON_SLICE)) / 3.0D
+                + catalog.baseValue(Good.of(Items.BLAZE_POWDER)) / 60.0D;
+        if (Math.abs(catalog.baseValue(water) - bottle) > 1.0e-6D
+                || Math.abs(catalog.baseValue(healing) - catalog.baseValue(awkward) - brew) > 1.0e-6D) {
+            helper.fail(String.format("Healing is worth %.4f from awkward %.4f; brewing adds %.4f",
+                    catalog.baseValue(healing), catalog.baseValue(awkward), brew));
+        }
+        if (!(catalog.baseValue(strong) > catalog.baseValue(healing)
+                && catalog.baseValue(splash) > catalog.baseValue(healing)
+                && catalog.baseValue(lingering) > catalog.baseValue(splash)
+                && catalog.baseValue(arrow) < catalog.baseValue(lingering)
+                && catalog.baseValue(arrow) > catalog.baseValue(Good.of(Items.ARROW)))) {
+            helper.fail("Potion prices are out of order: each brew and each tipped arrow should cost what went in");
+        }
+        helper.succeed();
+    }
+
+    /**
+     * Brewing from bought ingredients and selling the result must lose money, every brew.
+     *
+     * <p>Guards against: a potion being worth more than what it's brewed from, which would turn a
+     * brewing stand into an emerald printer.
+     */
+    @GameTest(template = TEMPLATE)
+    public static void brewingBoughtIngredientsNeverPays(GameTestHelper helper) {
+        MarketCatalog catalog = buildCatalog(helper);
+        double spread = EconomyConfig.INSTANCE.minimumSpread();
+        MarketData market = new MarketData();
+        double fuel = market.spotBuyPrice(Good.of(Items.BLAZE_POWDER), 0L, spread) / 60.0D;
+        int checked = 0;
+        for (Good input : catalog.goods()) {
+            if (input.potion() == null || input.item() == Items.TIPPED_ARROW) {
+                continue;
+            }
+            ItemStack bottle = input.stack(1);
+            for (Good reagent : catalog.goods()) {
+                ItemStack ingredient = reagent.stack(1);
+                if (reagent.potion() != null || !BrewingRecipeRegistry.hasOutput(bottle, ingredient)) {
+                    continue;
+                }
+                Good made = Good.of(BrewingRecipeRegistry.getOutput(bottle, ingredient));
+                if (made == null || !catalog.isTradeable(made)) {
+                    continue;
+                }
+                double cost = market.spotBuyPrice(input, 0L, spread) + market.spotBuyPrice(reagent, 0L, spread) / 3.0D + fuel;
+                ItemStack left = ingredient.getCraftingRemainingItem();
+                if (!left.isEmpty()) {
+                    cost -= market.spotSellPrice(Good.of(left.getItem()), 0L, spread) / 3.0D; // dragon's breath's bottle
+                }
+                double paid = market.spotSellPrice(made, 0L, spread);
+                if (paid >= cost) {
+                    helper.fail(String.format("Brewing %s into %s costs %.4f and sells for %.4f",
+                            reagent.key(), made.key(), cost, paid));
+                    return;
+                }
+                checked++;
+            }
+        }
+        if (checked < 100) {
+            helper.fail("Only " + checked + " brews were checked; potions are missing from the market");
+        }
+        helper.succeed();
+    }
+
+    /**
+     * Only a plain potion is a good: renamed or custom potions aren't, and a potion survives being
+     * bought, saved and sent over the network as the same good.
+     */
+    @GameTest(template = TEMPLATE)
+    public static void onlyPlainPotionsTrade(GameTestHelper helper) {
+        Good healing = Good.of(PotionUtils.setPotion(new ItemStack(Items.POTION), Potions.HEALING));
+        if (!Good.potion(Items.POTION, Potions.HEALING).equals(healing)
+                || healing.equals(Good.of(PotionUtils.setPotion(new ItemStack(Items.POTION), Potions.SWIFTNESS)))) {
+            helper.fail("Two potions with different contents are the same good, or one potion is two");
+            return;
+        }
+        ItemStack renamed = healing.stack(1);
+        renamed.setHoverName(Component.literal("Juice"));
+        ItemStack custom = PotionUtils.setPotion(new ItemStack(Items.POTION), Potions.HEALING);
+        custom.getOrCreateTag().putInt(PotionUtils.TAG_CUSTOM_POTION_COLOR, 0xFF0000);
+        if (Good.of(renamed) != null || Good.of(custom) != null) {
+            helper.fail("A renamed or custom-coloured potion counts as a plain one");
+        }
+        if (!healing.equals(Good.of(healing.stack(1))) || !"minecraft:potion[minecraft:healing]".equals(healing.key())) {
+            helper.fail("A bought potion isn't the good it was bought as, or saves under the wrong key: " + healing.key());
+        }
+        var buf = new net.minecraft.network.FriendlyByteBuf(io.netty.buffer.Unpooled.buffer());
+        healing.encode(buf);
+        Good.of(Items.DIAMOND).encode(buf);
+        if (!healing.equals(Good.decode(buf)) || !Good.of(Items.DIAMOND).equals(Good.decode(buf))) {
+            helper.fail("A good changed on its way over the network");
         }
         helper.succeed();
     }
@@ -674,7 +817,7 @@ public final class EconomyGameTests {
         MarketCatalog catalog = buildCatalog(helper);
         MinecraftServer server = helper.getLevel().getServer();
         double brokerSpread = EconomyConfig.INSTANCE.effectiveSpread(true);
-        for (Item item : catalog.tradeableItems()) {
+        for (Good item : catalog.goods()) {
             for (int count : new int[]{1, 64}) {
                 MarketData market = new MarketData();
                 MarketData.Quote bought = market.commitBuy(item, count, 0L, 0.0D);
@@ -686,14 +829,14 @@ public final class EconomyGameTests {
             }
         }
 
-        List<Item> deals = BrokerDeals.items(server);
+        List<Good> deals = BrokerDeals.goods(server);
         int expected = 2 * EconomyConfig.INSTANCE.brokerDeals.get();
         if (deals.size() != expected || deals.stream().distinct().count() != expected
-                || !deals.equals(BrokerDeals.items(server))) {
+                || !deals.equals(BrokerDeals.goods(server))) {
             helper.fail("Today's deals are the wrong size, repeat an item, or change between calls: " + deals);
         }
-        Item offer = deals.get(0);
-        Item wanted = deals.get(deals.size() - 1);
+        Good offer = deals.get(0);
+        Good wanted = deals.get(deals.size() - 1);
         if (BrokerDeals.spread(server, offer, true, true) != 0.0D
                 || BrokerDeals.spread(server, offer, false, true) != brokerSpread
                 || BrokerDeals.spread(server, wanted, false, true) != 0.0D

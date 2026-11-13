@@ -2,7 +2,6 @@ package com.soloeconomy.market;
 
 import com.soloeconomy.config.EconomyConfig;
 
-import net.minecraft.world.item.Item;
 import net.minecraft.world.entity.player.Player;
 
 import javax.annotation.Nullable;
@@ -26,12 +25,12 @@ public final class StockCertificates {
 
     /** @return the good unlocked, or null if the certificate was cashed in */
     @Nullable
-    public static Item redeem(Player player) {
+    public static Good redeem(Player player) {
         MarketCatalog catalog = MarketCatalog.active();
-        List<Item> locked = new ArrayList<>();
-        for (Item item : catalog.tradeableItems()) {
-            if (!Discovery.canBuy(player, item)) {
-                locked.add(item);
+        List<Good> locked = new ArrayList<>();
+        for (Good good : catalog.goods()) {
+            if (!Discovery.canBuy(player, good)) {
+                locked.add(good);
             }
         }
         if (locked.isEmpty()) {
@@ -40,9 +39,9 @@ public final class StockCertificates {
         }
         locked.sort(Comparator.comparingDouble(catalog::baseValue).reversed());
         // Any of the most valuable quarter: always worth having, not always the same thing.
-        Item item = locked.get(player.getRandom().nextInt((locked.size() + 3) / 4));
-        Discovery.discover(player, item);
-        return item;
+        Good good = locked.get(player.getRandom().nextInt((locked.size() + 3) / 4));
+        Discovery.discover(player, good);
+        return good;
     }
 
     public static long cashValue() {

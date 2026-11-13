@@ -2,7 +2,7 @@
 
 **A real market for single-player worlds.** Sell what you mine, farm and loot. Buy what you need. Prices react to what you've been doing, so dumping a chest of diamonds tanks the diamond price and buying up iron makes it climb.
 
-Multiplayer servers get an economy for free: other players. Solo worlds don't, and trading is whatever villager offers you happen to roll. Solo Economy gives you a market of eleven merchants, each buying and selling the goods their trade actually needs.
+Multiplayer servers get an economy for free: other players. Solo worlds don't, and trading is whatever villager offers you happen to roll. Solo Economy gives you a market of twelve merchants, each buying and selling the goods their trade actually needs.
 
 ---
 
@@ -26,10 +26,13 @@ A new villager profession. A Broker working a stall cuts that stall's trading fe
 ### 📜 Stock certificates
 Found in loot chests: dungeons, temples, treasure, strongholds, bastions, End cities and more. **Use one to unlock a rare good** at the market, picked from the most valuable things you haven't found yet. Nothing left to unlock? It cashes in for emeralds instead.
 
+### ⚗️ Potions
+Every potion you can brew, to drink, splash or leave lingering, plus tipped arrows. Each is **priced from what it's brewed from**, and listed by its effect, like **Speed (8:00)**, so you can tell a long potion from a short one at a glance.
+
 ### 💎 Emerald account
 Emeralds are the currency, kept as a balance rather than in your inventory, so a big sale never buries you in stacks. **Deposit** and **Withdraw** at any stall, always 1:1. Your balance is shown in the corner of your screen.
 
-### 🧑‍🌾 Eleven merchants
+### 🧑‍🌾 Twelve merchants
 Not everything is for sale. Every tradeable item has someone with a reason to want it:
 
 | Merchant | Deals in |
@@ -42,9 +45,10 @@ Not everything is for sale. Every tradeable item has someone with a reason to wa
 | Smith | ores, ingots, iron and netherite gear |
 | Collector | diamonds, netherite, rare finds |
 | Cleric | mob drops and brewing ingredients |
+| Alchemist | potions to drink, splash and lingering |
 | Tailor | wool, leather, dyes |
 | Librarian | paper, books, maps |
-| Fletcher | bows, arrows, flint |
+| Fletcher | bows, arrows, tipped arrows, flint |
 
 ### 🔎 The market screen
 - **Merchants down the side**, with each one's goods listed alongside their **sell and buy price on every row**
@@ -55,7 +59,7 @@ Not everything is for sale. Every tradeable item has someone with a reason to wa
 - **Supply tooltips** tell you whether an item is oversupplied or in demand right now
 
 ### 📈 Prices that move
-- **269 tradeable items** in vanilla
+- **Over 400 tradeable goods** in vanilla, every potion you can brew among them
 - **Selling lowers the price, buying raises it.** A stack of diamonds moves the diamond price about 30%. Cheap goods like cobblestone have deep markets and barely move, but a double chest of it still will.
 - **Markets recover slowly**, about halfway back to normal in a week. Selling a stack now and then pays well; dumping a farm's output every day drives that price down and keeps it there.
 - **Bulk trades are priced unit by unit**, so selling 64 at once is never worse than selling them one at a time. There's no reason to click 64 times.
@@ -113,7 +117,7 @@ About 225 raw materials have set prices. Everything else is priced from the ingr
 
 This is an early release.
 
-- **Not yet tradeable:** potions, spawn eggs, music discs, pottery sherds and armour trims.
+- **Not yet tradeable:** spawn eggs, music discs, pottery sherds and armour trims.
 - **Modded items** are traded with `openMarket` on or when a datapack lists them under a merchant. Items from modded machines and workbenches need `modRecipes` on, and some may need a price set by hand. **Create** works out of the box with both settings on: zinc, brass and fluid recipes are priced.
 - **The balance display** can be moved to any corner, or hidden, under **Mods → Solo Economy → Config** if it overlaps a minimap.
 - **Built for single-player.** On a server, all players share one market.

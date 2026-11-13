@@ -3,7 +3,6 @@ package com.soloeconomy.market;
 import com.soloeconomy.config.EconomyConfig;
 
 import net.minecraft.server.MinecraftServer;
-import net.minecraft.world.item.Item;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -32,8 +31,8 @@ public final class BrokerDeals {
     private static MarketCatalog pickedFor;
     private static long pickedDay = Long.MIN_VALUE;
     private static int pickedCount = -1;
-    private static List<Item> onOffer = List.of();
-    private static List<Item> wanted = List.of();
+    private static List<Good> onOffer = List.of();
+    private static List<Good> wanted = List.of();
 
     private BrokerDeals() {
     }
@@ -49,32 +48,32 @@ public final class BrokerDeals {
         pickedDay = day;
         pickedCount = count;
 
-        List<Item> pool = new ArrayList<>(catalog.tradeableItems());
+        List<Good> pool = new ArrayList<>(catalog.goods());
         Collections.shuffle(pool, new Random(server.overworld().getSeed() * 31L + day));
         count = Math.min(count, pool.size() / 2);
         onOffer = List.copyOf(pool.subList(0, count));
         wanted = List.copyOf(pool.subList(count, 2 * count));
     }
 
-    /** Today's deals, goods on offer first. The same item is never both. */
-    public static List<Item> items(MinecraftServer server) {
+    /** Today's deals, goods on offer first. The same good is never both. */
+    public static List<Good> goods(MinecraftServer server) {
         refresh(server);
-        List<Item> all = new ArrayList<>(onOffer);
+        List<Good> all = new ArrayList<>(onOffer);
         all.addAll(wanted);
         return all;
     }
 
-    public static byte dealFor(MinecraftServer server, Item item, boolean staffed) {
+    public static byte dealFor(MinecraftServer server, Good good, boolean staffed) {
         if (!staffed) {
             return NONE;
         }
         refresh(server);
-        return onOffer.contains(item) ? ON_OFFER : wanted.contains(item) ? WANTED : NONE;
+        return onOffer.contains(good) ? ON_OFFER : wanted.contains(good) ? WANTED : NONE;
     }
 
     /** The half-spread for one side of a trade at a stall: nothing on a deal, the usual fee otherwise. */
-    public static double spread(MinecraftServer server, Item item, boolean buying, boolean staffed) {
-        byte deal = dealFor(server, item, staffed);
+    public static double spread(MinecraftServer server, Good good, boolean buying, boolean staffed) {
+        byte deal = dealFor(server, good, staffed);
         if ((buying && deal == ON_OFFER) || (!buying && deal == WANTED)) {
             return 0.0D;
         }
