@@ -11,6 +11,7 @@ import net.minecraft.tags.TagKey;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
+import net.minecraft.world.item.alchemy.PotionBrewing;
 import net.minecraft.world.item.crafting.AbstractCookingRecipe;
 import net.minecraft.world.item.crafting.CraftingRecipe;
 import net.minecraft.world.item.crafting.Ingredient;
@@ -67,30 +68,34 @@ public final class MarketCatalog {
     private static final int MAX_INGREDIENT_CHOICES = 64;
     private static final int MAX_RELAXATION_PASSES = 32;
     /** Assembly fees stop compounding here, so a deep chain cannot balloon into absurdity. */
-    private static final int MAX_CRAFT_STEPS = 6;
+    static final int MAX_CRAFT_STEPS = 6;
 
     private static MarketCatalog active = empty();
 
     private final Map<Item, Double> primitivePrices;
     private final Map<Item, Bundle> bundles;
+    /** Potions and tipped arrows, one per potion inside; see {@link PotionPricing}. */
+    private final Map<Good, Bundle> potions;
     private final List<Merchant> merchants;
-    private final Set<Item> listed = new HashSet<>();
-    private final List<Item> sortedItems;
+    private final Set<Good> listed = new HashSet<>();
+    private final List<Good> sortedGoods;
     private List<MarketAudit.LoopRisk> loopRisks = List.of();
     private List<CraftPath> recipes = List.of();
 
-    private MarketCatalog(Map<Item, Double> primitivePrices, Map<Item, Bundle> bundles, List<Merchant> merchants) {
+    private MarketCatalog(Map<Item, Double> primitivePrices, Map<Item, Bundle> bundles, Map<Good, Bundle> potions,
+                          List<Merchant> merchants) {
         this.primitivePrices = primitivePrices;
         this.bundles = bundles;
+        this.potions = potions;
         this.merchants = merchants;
-        merchants.forEach(merchant -> listed.addAll(merchant.items()));
-        List<Item> items = new ArrayList<>(listed);
-        items.sort((a, b) -> BuiltInRegistries.ITEM.getKey(a).compareTo(BuiltInRegistries.ITEM.getKey(b)));
-        this.sortedItems = Collections.unmodifiableList(items);
+        merchants.forEach(merchant -> listed.addAll(merchant.goods()));
+        List<Good> goods = new ArrayList<>(listed);
+        goods.sort(Good.ORDER);
+        this.sortedGoods = Collections.unmodifiableList(goods);
     }
 
     public static MarketCatalog empty() {
-        return new MarketCatalog(Map.of(), Map.of(), List.of());
+        return new MarketCatalog(Map.of(), Map.of(), Map.of(), List.of());
     }
 
     public static MarketCatalog active() {
@@ -101,9 +106,13 @@ public final class MarketCatalog {
         active = catalog;
     }
 
-    /** Tradeable means some merchant deals in it. Pricing works for more items than that. */
+    /** Tradeable means some merchant deals in it. Pricing works for more goods than that. */
+    public boolean isTradeable(Good good) {
+        return listed.contains(good);
+    }
+
     public boolean isTradeable(Item item) {
-        return listed.contains(item);
+        return isTradeable(Good.of(item));
     }
 
     public List<Merchant> merchants() {
@@ -125,7 +134,12 @@ public final class MarketCatalog {
         return primitivePrices.containsKey(item);
     }
 
-    /** What one unit of this item is made of. Null if the market will not handle it. */
+    /** What one unit of this good is made of. Null if the market will not handle it. */
+    @Nullable
+    public Bundle bundle(Good good) {
+        return good.potion() == null ? bundles.get(good.item()) : potions.get(good);
+    }
+
     @Nullable
     public Bundle bundle(Item item) {
         return bundles.get(item);
@@ -137,8 +151,8 @@ public final class MarketCatalog {
     }
 
     /** What one unit is worth in raw materials at base prices. Zero for anything without a price. */
-    public double baseValue(Item item) {
-        Bundle bundle = bundles.get(item);
+    public double baseValue(Good good) {
+        Bundle bundle = bundle(good);
         if (bundle == null) {
             return 0.0D;
         }
@@ -169,8 +183,9 @@ public final class MarketCatalog {
         return Math.max(MIN_BASE_STOCK, depth);
     }
 
-    public List<Item> tradeableItems() {
-        return sortedItems;
+    /** Everything some merchant deals in, in {@link Good#ORDER}. */
+    public List<Good> goods() {
+        return sortedGoods;
     }
 
     public int primitiveCount() {
@@ -195,11 +210,13 @@ public final class MarketCatalog {
     // Construction
     // ------------------------------------------------------------------
 
+    /** @param brewing the server's brewing recipes, or null to leave potions unpriced */
     public static MarketCatalog build(Map<Item, Double> seeds,
                                       Set<Item> blocked,
                                       List<MerchantLoader.Definition> merchantDefinitions,
                                       RecipeManager recipeManager,
-                                      HolderLookup.Provider registries) {
+                                      HolderLookup.Provider registries,
+                                      @Nullable PotionBrewing brewing) {
         long started = System.nanoTime();
         Map<Item, Double> primitives = new HashMap<>();
         for (Map.Entry<Item, Double> seed : seeds.entrySet()) {
@@ -209,7 +226,7 @@ public final class MarketCatalog {
         }
 
         List<CraftPath> nodes = collectRecipes(recipeManager, registries, blocked);
-        MarketCatalog catalog = assemble(primitives, blocked, merchantDefinitions, nodes);
+        MarketCatalog catalog = assemble(primitives, blocked, merchantDefinitions, nodes, brewing);
 
         // A modded machine can make a hand-priced item for less than its price - Create haunts soul
         // sand into quartz - which is a real money machine in that world. Price those items from
@@ -226,19 +243,20 @@ public final class MarketCatalog {
                 SoloEconomy.LOGGER.info("{} is now priced from a modded recipe that makes it for less than its set price",
                         BuiltInRegistries.ITEM.getKey(item));
             }
-            catalog = assemble(primitives, blocked, merchantDefinitions, nodes);
+            catalog = assemble(primitives, blocked, merchantDefinitions, nodes, brewing);
         }
 
-        SoloEconomy.LOGGER.info("Market catalog built in {} ms: {} recipes read, {} priced items, {} traded by {} merchants",
-                (System.nanoTime() - started) / 1_000_000L, nodes.size(), catalog.bundles.size(), catalog.size(),
-                catalog.merchants().size());
+        SoloEconomy.LOGGER.info("Market catalog built in {} ms: {} recipes read, {} priced items and {} potions, {} traded by {} merchants",
+                (System.nanoTime() - started) / 1_000_000L, nodes.size(), catalog.bundles.size(), catalog.potions.size(),
+                catalog.size(), catalog.merchants().size());
         reportLoops(catalog.loopRisks);
         return catalog;
     }
 
     private static MarketCatalog assemble(Map<Item, Double> primitives, Set<Item> blocked,
                                           List<MerchantLoader.Definition> merchantDefinitions,
-                                          List<CraftPath> nodes) {
+                                          List<CraftPath> nodes,
+                                          @Nullable PotionBrewing brewing) {
         // Static prices exist only to decide which option in a tag-based ingredient slot is the
         // cheapest. They never reach a player.
         // Twice: first without crediting returned containers, to learn what a bucket or a bottle is
@@ -253,24 +271,32 @@ public final class MarketCatalog {
 
         Map<Item, Bundle> bundles = expandAll(primitives, paths, estimates, blocked);
         bundles.keySet().removeAll(blocked);
+        Map<Good, Bundle> potions = PotionPricing.price(brewing, bundles, primitives);
+        potions.keySet().removeIf(good -> blocked.contains(good.item()));
 
-        MarketCatalog catalog = new MarketCatalog(new HashMap<>(primitives), bundles,
-                resolveMerchants(merchantDefinitions, bundles));
+        MarketCatalog catalog = new MarketCatalog(new HashMap<>(primitives), bundles, potions,
+                resolveMerchants(merchantDefinitions, bundles, potions));
         catalog.recipes = List.copyOf(nodes);
         catalog.loopRisks = MarketAudit.findLoops(catalog, nodes, EconomyConfig.INSTANCE.minimumSpread());
         return catalog;
     }
 
     /**
-     * Turns merchant definitions into item lists: tags expanded, order kept, duplicates dropped.
-     * Only priced items can be traded; an explicit id with no price is reported, since that is
-     * almost always a mistake in the datapack.
+     * Turns merchant definitions into lists of goods: tags expanded, order kept, duplicates
+     * dropped. A potion item, like {@code minecraft:potion}, stands for every potion of that kind
+     * that can be brewed. Only priced goods can be traded; an explicit id with no price is
+     * reported, since that is almost always a mistake in the datapack.
      */
     private static List<Merchant> resolveMerchants(List<MerchantLoader.Definition> definitions,
-                                                   Map<Item, Bundle> bundles) {
+                                                   Map<Item, Bundle> bundles,
+                                                   Map<Good, Bundle> potions) {
+        Map<Item, List<Good>> potionsByItem = new HashMap<>();
+        potions.keySet().stream().sorted(Good.ORDER)
+                .forEach(good -> potionsByItem.computeIfAbsent(good.item(), k -> new ArrayList<>()).add(good));
+
         List<Merchant> merchants = new ArrayList<>();
         for (MerchantLoader.Definition definition : definitions) {
-            Set<Item> items = new LinkedHashSet<>();
+            Set<Good> goods = new LinkedHashSet<>();
             for (String entry : definition.entries()) {
                 boolean tag = entry.startsWith("#");
                 ResourceLocation id = ResourceLocation.tryParse(tag ? entry.substring(1) : entry);
@@ -278,27 +304,38 @@ public final class MarketCatalog {
                     SoloEconomy.LOGGER.warn("Merchant {}: malformed entry '{}'", definition.id(), entry);
                 } else if (tag) {
                     BuiltInRegistries.ITEM.getTag(TagKey.create(Registries.ITEM, id)).ifPresent(set -> set.forEach(
-                            holder -> {
-                                if (bundles.containsKey(holder.value())) {
-                                    items.add(holder.value());
-                                }
-                            }));
-                } else if (BuiltInRegistries.ITEM.containsKey(id) && bundles.containsKey(BuiltInRegistries.ITEM.get(id))) {
-                    items.add(BuiltInRegistries.ITEM.get(id));
-                } else {
+                            holder -> addGoods(goods, holder.value(), bundles, potionsByItem)));
+                } else if (!BuiltInRegistries.ITEM.containsKey(id)
+                        || !addGoods(goods, BuiltInRegistries.ITEM.get(id), bundles, potionsByItem)) {
                     SoloEconomy.LOGGER.warn("Merchant {}: '{}' is unknown or has no price, skipping it",
                             definition.id(), entry);
                 }
             }
-            merchants.add(new Merchant(definition.id(), definition.icon(), List.copyOf(items)));
+            merchants.add(new Merchant(definition.id(), definition.icon(), List.copyOf(goods)));
         }
         if (EconomyConfig.INSTANCE.openMarket.get()) {
-            // The Store deals in everything with a price, modded items included.
-            List<Item> everything = new ArrayList<>(bundles.keySet());
-            everything.sort(Comparator.comparing(BuiltInRegistries.ITEM::getKey));
+            // The Store deals in everything with a price, modded items and potions included.
+            List<Good> everything = new ArrayList<>(potions.keySet());
+            bundles.keySet().forEach(item -> everything.add(Good.of(item)));
+            everything.sort(Good.ORDER);
             merchants.add(new Merchant("general", Items.CHEST, List.copyOf(everything)));
         }
         return List.copyOf(merchants);
+    }
+
+    /** Adds an item, or every priced potion it can hold. False if there was nothing to add. */
+    private static boolean addGoods(Set<Good> goods, Item item, Map<Item, Bundle> bundles,
+                                    Map<Item, List<Good>> potionsByItem) {
+        List<Good> variants = potionsByItem.get(item);
+        if (variants != null) {
+            goods.addAll(variants);
+            return true;
+        }
+        if (bundles.containsKey(item)) {
+            goods.add(Good.of(item));
+            return true;
+        }
+        return false;
     }
 
     /**
@@ -679,7 +716,7 @@ public final class MarketCatalog {
     }
 
     /** Someone with a reason to trade: an id for its lang keys, an icon, and its goods in display order. */
-    public record Merchant(String id, Item icon, List<Item> items) {
+    public record Merchant(String id, Item icon, List<Good> goods) {
     }
 
     /** One recipe, reduced to what pricing cares about. {@code modded}: read only because of modRecipes. */

@@ -1,3 +1,25 @@
+# Solo Economy 0.7.0
+
+**Minecraft 1.21.1 · NeoForge (built on 21.1.209) · Java 21**
+
+## Potions
+
+Potions can finally be bought and sold. A new merchant, the **Alchemist**, deals in every potion you can brew: ones to drink, splash potions and lingering potions. The **Fletcher** sells tipped arrows too.
+
+Each potion is priced from how it's brewed: a bottle of water, then nether wart, the ingredient and a little blaze powder at each step. A longer or stronger potion costs a bit more, and selling one moves the prices of what it was brewed from. Brewing your own usually works out cheaper than buying one ready-made.
+
+Potions unlock one at a time. Carrying a Potion of Healing lets you buy that one, not every potion.
+
+In the market, a potion is listed by its effect and how long it lasts, like **Speed (8:00)** or **Instant Health II**, because the name alone doesn't say which version it is. Hover over the icon for the full name. Searching for an effect, like "speed", finds them too.
+
+Renamed potions, and ones with custom effects, can't be traded.
+
+## For modpack makers
+
+Potions from mods that add brewing recipes are priced the same way. In `merchants.json`, an entry like `minecraft:potion` stands for every potion of that kind.
+
+---
+
 # Solo Economy 0.6.2
 
 **Minecraft 1.21.1 · NeoForge (built on 21.1.209) · Java 21**

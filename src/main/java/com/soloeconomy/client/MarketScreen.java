@@ -2,6 +2,7 @@ package com.soloeconomy.client;
 
 import com.soloeconomy.market.BrokerDeals;
 import com.soloeconomy.market.EconomyAccount;
+import com.soloeconomy.market.Good;
 import com.soloeconomy.menu.MarketMenu;
 import com.soloeconomy.network.Listing;
 import com.soloeconomy.network.MarketListingsPayload;
@@ -25,6 +26,7 @@ import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
+import net.minecraft.world.item.TooltipFlag;
 import net.neoforged.neoforge.network.PacketDistributor;
 
 import org.lwjgl.glfw.GLFW;
@@ -112,11 +114,11 @@ public class MarketScreen extends AbstractContainerScreen<MarketMenu> {
 
     @Nullable
     private Row selected;
-    /** An item clicked in the inventory panel, selected once its search results arrive. */
+    /** A good clicked in the inventory panel, selected once its search results arrive. */
     @Nullable
-    private Item pendingSelect;
+    private Good pendingSelect;
     @Nullable
-    private Item quoteRequestedFor;
+    private Good quoteRequestedFor;
     private int quoteRequestedQuantity = Integer.MIN_VALUE;
 
     public MarketScreen(MarketMenu menu, Inventory inventory, Component title) {
@@ -185,14 +187,14 @@ public class MarketScreen extends AbstractContainerScreen<MarketMenu> {
             merchant = ClientMarketState.merchants().get(0).id();
         }
 
-        Item keep = pendingSelect != null ? pendingSelect : selected == null ? null : selected.listing().item();
+        Good keep = pendingSelect != null ? pendingSelect : selected == null ? null : selected.listing().good();
         List<Row> newRows = new ArrayList<>();
         selected = null;
         for (Listing listing : ClientMarketState.listings()) {
-            ItemStack stack = new ItemStack(listing.item());
-            Row row = new Row(listing, stack, stack.getHoverName().getString());
+            ItemStack stack = listing.good().stack(1);
+            Row row = new Row(listing, stack, rowName(listing.good(), stack));
             newRows.add(row);
-            if (listing.item() == keep) {
+            if (listing.good().equals(keep)) {
                 selected = row;
             }
         }
@@ -203,6 +205,34 @@ public class MarketScreen extends AbstractContainerScreen<MarketMenu> {
             scrollRow = Mth.clamp(scrollRow, index - ROWS + 1, index);
         }
         pendingSelect = null;
+    }
+
+    /**
+     * A potion's own name doesn't tell its versions apart - a Potion of Swiftness is called that
+     * whether it lasts three minutes or eight - and is too long for a row anyway. So a potion with
+     * one effect is listed as that effect, the way its tooltip shows it: "Speed (8:00)". The icon
+     * shows whether it's drunk, thrown or lingering, and the tooltip gives the full name.
+     */
+    private String rowName(Good good, ItemStack stack) {
+        if (good.potion() != null && good.potion().value().getEffects().size() == 1) {
+            List<Component> lines = potionTooltip(stack);
+            if (lines.size() > 1) {
+                return lines.get(1).getString();
+            }
+        }
+        return stack.getHoverName().getString();
+    }
+
+    /** A potion's name and effects, as its own tooltip has them, without the "When Applied" part. */
+    private List<Component> potionTooltip(ItemStack stack) {
+        List<Component> lines = new ArrayList<>();
+        for (Component line : stack.getTooltipLines(Item.TooltipContext.of(minecraft.level), minecraft.player, TooltipFlag.NORMAL)) {
+            if (line.getString().isEmpty()) {
+                break;
+            }
+            lines.add(line);
+        }
+        return lines;
     }
 
     private void selectMerchant(String id) {
@@ -228,23 +258,23 @@ public class MarketScreen extends AbstractContainerScreen<MarketMenu> {
             int amount = quantity() == ServerMarketHandler.COUNT_MAX ? -1 : quantity();
             PacketDistributor.sendToServer(new TransferPayload(amount, !right));
         } else if (selected != null) {
-            PacketDistributor.sendToServer(new TradePayload(selected.listing().item(), quantity(), right));
+            PacketDistributor.sendToServer(new TradePayload(selected.listing().good(), quantity(), right));
         }
     }
 
-    private void ensureQuote(Item item) {
-        if (item == quoteRequestedFor && quantity() == quoteRequestedQuantity) {
+    private void ensureQuote(Good good) {
+        if (good.equals(quoteRequestedFor) && quantity() == quoteRequestedQuantity) {
             return;
         }
-        quoteRequestedFor = item;
+        quoteRequestedFor = good;
         quoteRequestedQuantity = quantity();
-        PacketDistributor.sendToServer(new QuoteRequestPayload(item, quantity()));
+        PacketDistributor.sendToServer(new QuoteRequestPayload(good, quantity()));
     }
 
-    private int countHeld(Item item) {
+    private int countHeld(Good good) {
         int total = 0;
         for (ItemStack stack : minecraft.player.getInventory().items) {
-            if (stack.is(item) && ServerMarketHandler.isTradeableStack(stack)) {
+            if (good.equals(Good.of(stack))) {
                 total += stack.getCount();
             }
         }
@@ -325,7 +355,7 @@ public class MarketScreen extends AbstractContainerScreen<MarketMenu> {
     /** Selling from the inventory panel needs a clean, unenchanted stack that some merchant buys. */
     @Nullable
     private static Listing sellable(ItemStack stack) {
-        return ServerMarketHandler.isTradeableStack(stack) ? ClientMarketState.carried(stack.getItem()) : null;
+        return ClientMarketState.carried(Good.of(stack));
     }
 
     private boolean overScrollbar(double mx, double my) {
@@ -339,10 +369,10 @@ public class MarketScreen extends AbstractContainerScreen<MarketMenu> {
             ItemStack stack = minecraft.player.getInventory().items.get(slot);
             if (sellable(stack) != null) {
                 if (hasShiftDown()) {
-                    PacketDistributor.sendToServer(new TradePayload(stack.getItem(), ServerMarketHandler.COUNT_MAX, false));
+                    PacketDistributor.sendToServer(new TradePayload(Good.of(stack), ServerMarketHandler.COUNT_MAX, false));
                 } else {
                     // Search for it: that lists every merchant who deals in it, and selects it there.
-                    pendingSelect = stack.getItem();
+                    pendingSelect = Good.of(stack);
                     searchBox.setValue(stack.getHoverName().getString());
                     setFocused(null);
                 }
@@ -595,7 +625,7 @@ public class MarketScreen extends AbstractContainerScreen<MarketMenu> {
         Component unit = Component.translatable("gui.soloeconomy.bank.unit");
         g.drawString(font, unit, x + (LIST_WIDTH - font.width(unit)) / 2, y + 102, COLOR_MUTED, false);
 
-        Component carried = Component.translatable("gui.soloeconomy.bank.carrying", countHeld(Items.EMERALD));
+        Component carried = Component.translatable("gui.soloeconomy.bank.carrying", countHeld(Good.of(Items.EMERALD)));
         g.drawString(font, carried, x + (LIST_WIDTH - font.width(carried)) / 2, y + 140, COLOR_MUTED, false);
     }
 
@@ -633,8 +663,8 @@ public class MarketScreen extends AbstractContainerScreen<MarketMenu> {
             setButton(rightButton, Component.translatable("gui.soloeconomy.unit_buy"), false);
             return;
         }
-        ensureQuote(selected.listing().item());
-        QuotePayload quote = ClientMarketState.quoteFor(selected.listing().item());
+        ensureQuote(selected.listing().good());
+        QuotePayload quote = ClientMarketState.quoteFor(selected.listing().good());
         if (quote == null) {
             setButton(leftButton, Component.literal("..."), false);
             setButton(rightButton, Component.literal("..."), false);
@@ -663,7 +693,7 @@ public class MarketScreen extends AbstractContainerScreen<MarketMenu> {
         drawBox(g, x + 6, topPos + BOX_Y, INV_COLUMNS * SLOT + 6, 9 * SLOT + 6);
 
         int hovered = slotAt(mouseX, mouseY);
-        Item chosen = selected == null ? null : selected.listing().item();
+        Good chosen = selected == null ? null : selected.listing().good();
         List<ItemStack> items = minecraft.player.getInventory().items;
         for (int shown = 0; shown < 36; shown++) {
             int slot = shown < 27 ? shown + 9 : shown - 27;
@@ -678,7 +708,7 @@ public class MarketScreen extends AbstractContainerScreen<MarketMenu> {
             g.renderItemDecorations(font, stack, sx + 1, sy + 1);
             if (sellable(stack) == null) {
                 dimItem(g, sx + 1, sy + 1);
-            } else if (stack.is(chosen)) {
+            } else if (chosen != null && chosen.equals(Good.of(stack))) {
                 drawFrame(g, sx, sy, SLOT, SLOT, 0xFFFFFFFF);
             }
         }
@@ -713,10 +743,11 @@ public class MarketScreen extends AbstractContainerScreen<MarketMenu> {
         // Only over the icon: a tooltip from anywhere else on the row would cover the prices.
         Row row = atBank() || mouseX >= leftPos + LIST_X + 23 ? null : rowAt(mouseX, mouseY);
         if (row != null) {
-            List<Component> lines = new ArrayList<>(List.of(
-                    row.stack().getHoverName(),
+            List<Component> lines = new ArrayList<>(row.listing().good().potion() == null
+                    ? List.of(row.stack().getHoverName()) : potionTooltip(row.stack()));
+            lines.addAll(List.of(
                     supplyLine(row.listing().stockRatio()),
-                    Component.translatable("gui.soloeconomy.carrying", countHeld(row.listing().item()))
+                    Component.translatable("gui.soloeconomy.carrying", countHeld(row.listing().good()))
                             .withStyle(ChatFormatting.GRAY)));
             if (row.listing().locked()) {
                 lines.add(Component.translatable("gui.soloeconomy.locked_tip").withStyle(ChatFormatting.GRAY));
@@ -733,7 +764,7 @@ public class MarketScreen extends AbstractContainerScreen<MarketMenu> {
                     EconomyAccount.format(ClientMarketState.balance())), mouseX, mouseY);
             return;
         }
-        QuotePayload quote = selected == null || atBank() ? null : ClientMarketState.quoteFor(selected.listing().item());
+        QuotePayload quote = selected == null || atBank() ? null : ClientMarketState.quoteFor(selected.listing().good());
         if (quote != null && leftButton.isHovered() && quote.sellCount() > 0) {
             g.renderTooltip(font, Component.translatable("gui.soloeconomy.action_sell_tip", quote.sellCount(),
                     EconomyAccount.format(quote.sellTotal())), mouseX, mouseY);

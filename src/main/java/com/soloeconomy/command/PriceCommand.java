@@ -6,6 +6,7 @@ import com.mojang.brigadier.context.CommandContext;
 import com.soloeconomy.SoloEconomy;
 import com.soloeconomy.config.EconomyConfig;
 import com.soloeconomy.event.ServerEvents;
+import com.soloeconomy.market.Good;
 import com.soloeconomy.market.MarketAudit;
 import com.soloeconomy.market.MarketCatalog;
 import com.soloeconomy.market.MarketData;
@@ -153,7 +154,7 @@ public final class PriceCommand {
         long time = source.getLevel().getGameTime();
         double spread = EconomyConfig.INSTANCE.effectiveSpread(false);
         source.sendSuccess(() -> Component.translatable("command.soloeconomy.price.now",
-                format(data.spotSellPrice(item, time, spread)), format(data.spotBuyPrice(item, time, spread))), false);
+                format(data.spotSellPrice(Good.of(item), time, spread)), format(data.spotBuyPrice(Good.of(item), time, spread))), false);
     }
 
     /** The rebuild already ran the audit, and a clean market has no loops, so any found are news. */

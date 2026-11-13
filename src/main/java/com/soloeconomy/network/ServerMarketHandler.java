@@ -3,6 +3,7 @@ package com.soloeconomy.network;
 import com.soloeconomy.market.BrokerDeals;
 import com.soloeconomy.market.Discovery;
 import com.soloeconomy.market.EconomyAccount;
+import com.soloeconomy.market.Good;
 import com.soloeconomy.market.MarketCatalog;
 import com.soloeconomy.market.MarketData;
 import com.soloeconomy.menu.MarketMenu;
@@ -12,8 +13,8 @@ import net.minecraft.network.chat.Component;
 import net.minecraft.network.protocol.game.ClientboundContainerSetSlotPacket;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.util.Mth;
+import net.minecraft.world.effect.MobEffectInstance;
 import net.minecraft.world.entity.player.Inventory;
-import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.neoforged.neoforge.network.handling.IPayloadContext;
@@ -23,7 +24,7 @@ import java.util.List;
 import java.util.Locale;
 
 /**
- * Every trade is priced and validated here, on the server. The client sends nothing but an item,
+ * Every trade is priced and validated here, on the server. The client sends nothing but a good,
  * a count and a direction - never a price - so a modified client can ask for a bad trade but
  * cannot invent a good one.
  */
@@ -60,32 +61,31 @@ public final class ServerMarketHandler {
         // A search looks across every merchant; otherwise show one merchant's goods in their own order.
         String search = payload.search().trim().toLowerCase(Locale.ROOT);
         MarketCatalog.Merchant merchant = catalog.merchant(payload.merchant());
-        List<Item> deals = menu.isStaffed() ? BrokerDeals.items(player.server) : List.of();
-        List<Item> source = !search.isEmpty() ? catalog.tradeableItems()
+        List<Good> deals = menu.isStaffed() ? BrokerDeals.goods(player.server) : List.of();
+        List<Good> source = !search.isEmpty() ? catalog.goods()
                 : BrokerDeals.MERCHANT_ID.equals(payload.merchant()) && !deals.isEmpty() ? deals
-                : merchant != null ? merchant.items() : List.of();
+                : merchant != null ? merchant.goods() : List.of();
 
         List<Listing> carried = new ArrayList<>();
         for (int slot = 0; slot < TRADEABLE_SLOTS; slot++) {
-            ItemStack stack = player.getInventory().getItem(slot);
-            Item item = stack.getItem();
-            if (isTradeableStack(stack) && catalog.isTradeable(item) && carried.stream().noneMatch(l -> l.item() == item)) {
-                carried.add(listing(data, player, menu, item, gameTime));
+            Good good = Good.of(player.getInventory().getItem(slot));
+            if (good != null && catalog.isTradeable(good) && carried.stream().noneMatch(l -> l.good().equals(good))) {
+                carried.add(listing(data, player, menu, good, gameTime));
             }
         }
 
         List<Listing> listings = new ArrayList<>();
-        for (Item item : source) {
-            if (!search.isEmpty() && !matchesSearch(item, search)) {
+        for (Good good : source) {
+            if (!search.isEmpty() && !matchesSearch(good, search)) {
                 continue;
             }
-            if (payload.inventoryOnly() && countInInventory(player.getInventory(), item) <= 0) {
+            if (payload.inventoryOnly() && countInInventory(player.getInventory(), good) <= 0) {
                 continue;
             }
             if (listings.size() >= MarketListingsPayload.MAX_LISTINGS) {
                 break; // searching narrows it down; the rest are a scroll too far anyway
             }
-            listings.add(listing(data, player, menu, item, gameTime));
+            listings.add(listing(data, player, menu, good, gameTime));
         }
 
         List<MarketListingsPayload.Merchant> merchants = new ArrayList<>();
@@ -99,24 +99,24 @@ public final class ServerMarketHandler {
                 EconomyAccount.balance(player)));
     }
 
-    private static Listing listing(MarketData data, ServerPlayer player, MarketMenu menu, Item item, long gameTime) {
-        return new Listing(item,
-                (float) data.spotBuyPrice(item, gameTime, fee(player, menu, item, true)),
-                (float) data.spotSellPrice(item, gameTime, fee(player, menu, item, false)),
-                (float) data.supplyRatio(item, gameTime),
-                !canBuy(player, menu, item),
-                BrokerDeals.dealFor(player.server, item, menu.isStaffed()));
+    private static Listing listing(MarketData data, ServerPlayer player, MarketMenu menu, Good good, long gameTime) {
+        return new Listing(good,
+                (float) data.spotBuyPrice(good, gameTime, fee(player, menu, good, true)),
+                (float) data.spotSellPrice(good, gameTime, fee(player, menu, good, false)),
+                (float) data.supplyRatio(good, gameTime),
+                !canBuy(player, menu, good),
+                BrokerDeals.dealFor(player.server, good, menu.isStaffed()));
     }
 
     /** Discovered, or on offer from this stall's Broker today: a deal is how you get hold of something new. */
-    private static boolean canBuy(ServerPlayer player, MarketMenu menu, Item item) {
-        return Discovery.canBuy(player, item)
-                || BrokerDeals.dealFor(player.server, item, menu.isStaffed()) == BrokerDeals.ON_OFFER;
+    private static boolean canBuy(ServerPlayer player, MarketMenu menu, Good good) {
+        return Discovery.canBuy(player, good)
+                || BrokerDeals.dealFor(player.server, good, menu.isStaffed()) == BrokerDeals.ON_OFFER;
     }
 
-    /** The half-spread this stall charges on one side of a trade in this item, Broker deals included. */
-    private static double fee(ServerPlayer player, MarketMenu menu, Item item, boolean buying) {
-        return BrokerDeals.spread(player.server, item, buying, menu.isStaffed());
+    /** The half-spread this stall charges on one side of a trade in this good, Broker deals included. */
+    private static double fee(ServerPlayer player, MarketMenu menu, Good good, boolean buying) {
+        return BrokerDeals.spread(player.server, good, buying, menu.isStaffed());
     }
 
     /**
@@ -132,39 +132,50 @@ public final class ServerMarketHandler {
             return;
         }
 
-        Item item = payload.item();
-        if (!MarketCatalog.active().isTradeable(item)) {
+        Good good = payload.good();
+        if (!MarketCatalog.active().isTradeable(good)) {
             return;
         }
 
         MarketData data = MarketData.get(player.server);
         long gameTime = player.level().getGameTime();
-        double sellFee = fee(player, menu, item, false);
-        double buyFee = fee(player, menu, item, true);
+        double sellFee = fee(player, menu, good, false);
+        double buyFee = fee(player, menu, good, true);
         boolean wantsMax = payload.count() == COUNT_MAX;
         int requested = wantsMax ? MAX_TRADE_COUNT : Mth.clamp(payload.count(), 1, MAX_TRADE_COUNT);
 
-        int sellCount = Math.min(requested, countInInventory(player.getInventory(), item));
+        int sellCount = Math.min(requested, countInInventory(player.getInventory(), good));
         long sellTotal = sellCount > 0
-                ? data.quoteSell(item, sellCount, gameTime, sellFee).cents()
+                ? data.quoteSell(good, sellCount, gameTime, sellFee).cents()
                 : 0L;
 
-        int buyCount = !canBuy(player, menu, item) ? 0
+        int buyCount = !canBuy(player, menu, good) ? 0
                 : wantsMax
-                ? data.maxAffordable(item, EconomyAccount.balance(player), gameTime, buyFee, MAX_TRADE_COUNT)
+                ? data.maxAffordable(good, EconomyAccount.balance(player), gameTime, buyFee, MAX_TRADE_COUNT)
                 : requested;
         long buyTotal = buyCount > 0
-                ? data.quoteBuy(item, buyCount, gameTime, buyFee).cents()
+                ? data.quoteBuy(good, buyCount, gameTime, buyFee).cents()
                 : 0L;
 
-        context.reply(new QuotePayload(item, sellCount, sellTotal, buyCount, buyTotal));
+        context.reply(new QuotePayload(good, sellCount, sellTotal, buyCount, buyTotal));
     }
 
-    private static boolean matchesSearch(Item item, String lowerSearch) {
-        if (item.getDescriptionId().toLowerCase(Locale.ROOT).contains(lowerSearch)) {
+    private static boolean matchesSearch(Good good, String lowerSearch) {
+        ItemStack stack = good.stack(1);
+        // The stack's id, not the item's, so "healing" finds the Potion of Healing.
+        if (stack.getDescriptionId().toLowerCase(Locale.ROOT).contains(lowerSearch)
+                || stack.getHoverName().getString().toLowerCase(Locale.ROOT).contains(lowerSearch)) {
             return true;
         }
-        return new ItemStack(item).getHoverName().getString().toLowerCase(Locale.ROOT).contains(lowerSearch);
+        // The market lists a potion by its effect ("Speed"), so that has to find it too.
+        if (good.potion() != null) {
+            for (MobEffectInstance effect : good.potion().value().getEffects()) {
+                if (Component.translatable(effect.getDescriptionId()).getString().toLowerCase(Locale.ROOT).contains(lowerSearch)) {
+                    return true;
+                }
+            }
+        }
+        return false;
     }
 
     // ------------------------------------------------------------------
@@ -179,45 +190,45 @@ public final class ServerMarketHandler {
             return;
         }
 
-        Item item = payload.item();
-        if (!MarketCatalog.active().isTradeable(item)) {
+        Good good = payload.good();
+        if (!MarketCatalog.active().isTradeable(good)) {
             feedback(player, Component.translatable("message.soloeconomy.untradeable"), true);
             return;
         }
 
         MarketData data = MarketData.get(player.server);
         long gameTime = player.level().getGameTime();
-        double spread = fee(player, menu, item, payload.buying());
+        double spread = fee(player, menu, good, payload.buying());
         boolean wantsMax = payload.count() == COUNT_MAX;
 
         if (payload.buying()) {
-            if (!canBuy(player, menu, item)) {
+            if (!canBuy(player, menu, good)) {
                 feedback(player, Component.translatable("message.soloeconomy.locked",
-                        new ItemStack(item).getHoverName()), true);
+                        good.name()), true);
                 return;
             }
             int requested = wantsMax
-                    ? data.maxAffordable(item, EconomyAccount.balance(player), gameTime, spread, MAX_TRADE_COUNT)
+                    ? data.maxAffordable(good, EconomyAccount.balance(player), gameTime, spread, MAX_TRADE_COUNT)
                     : Mth.clamp(payload.count(), 1, MAX_TRADE_COUNT);
             if (requested <= 0) {
                 feedback(player, Component.translatable("message.soloeconomy.cannot_afford",
-                        EconomyAccount.format(data.quoteBuy(item, 1, gameTime, spread).cents()),
+                        EconomyAccount.format(data.quoteBuy(good, 1, gameTime, spread).cents()),
                         EconomyAccount.format(EconomyAccount.balance(player))), true);
                 return;
             }
-            buy(player, data, item, requested, gameTime, spread);
+            buy(player, data, good, requested, gameTime, spread);
         } else {
             int requested = wantsMax ? MAX_TRADE_COUNT : Mth.clamp(payload.count(), 1, MAX_TRADE_COUNT);
-            sell(player, data, item, requested, gameTime, spread);
+            sell(player, data, good, requested, gameTime, spread);
         }
 
         syncInventory(player);
         EconomyAccount.sync(player);
     }
 
-    private static void buy(ServerPlayer player, MarketData data, Item item,
+    private static void buy(ServerPlayer player, MarketData data, Good good,
                             int count, long gameTime, double spread) {
-        MarketData.Quote quote = data.quoteBuy(item, count, gameTime, spread);
+        MarketData.Quote quote = data.quoteBuy(good, count, gameTime, spread);
         if (quote.isEmpty()) {
             return;
         }
@@ -230,47 +241,47 @@ public final class ServerMarketHandler {
         }
 
         // Price is locked in before the market state moves, so what you were quoted is what you pay.
-        data.commitBuy(item, count, gameTime, spread);
+        data.commitBuy(good, count, gameTime, spread);
         EconomyAccount.withdraw(player, quote.cents());
-        giveItems(player, item, count);
+        giveItems(player, good, count);
 
         feedback(player, Component.translatable("message.soloeconomy.bought",
-                count, new ItemStack(item).getHoverName(), EconomyAccount.format(quote.cents())), false);
+                count, good.name(), EconomyAccount.format(quote.cents())), false);
     }
 
-    private static void sell(ServerPlayer player, MarketData data, Item item,
+    private static void sell(ServerPlayer player, MarketData data, Good good,
                              int count, long gameTime, double spread) {
-        int available = countInInventory(player.getInventory(), item);
+        int available = countInInventory(player.getInventory(), good);
         if (available <= 0) {
             feedback(player, Component.translatable("message.soloeconomy.none_to_sell",
-                    new ItemStack(item).getHoverName()), true);
+                    good.name()), true);
             return;
         }
 
         int actual = Math.min(count, available);
-        MarketData.Quote quote = data.quoteSell(item, actual, gameTime, spread);
+        MarketData.Quote quote = data.quoteSell(good, actual, gameTime, spread);
         if (quote.isEmpty()) {
             return;
         }
         if (quote.cents() <= 0L) {
             feedback(player, Component.translatable("message.soloeconomy.worthless",
-                    new ItemStack(item).getHoverName()), true);
+                    good.name()), true);
             return;
         }
 
-        Discovery.discover(player, item);
+        Discovery.discover(player, good);
         // Take the goods first; only pay for what actually left the inventory.
-        int removed = removeFromInventory(player.getInventory(), item, actual);
+        int removed = removeFromInventory(player.getInventory(), good, actual);
         if (removed <= 0) {
             return;
         }
         MarketData.Quote settled = removed == actual
-                ? data.commitSell(item, actual, gameTime, spread)
-                : data.commitSell(item, removed, gameTime, spread);
+                ? data.commitSell(good, actual, gameTime, spread)
+                : data.commitSell(good, removed, gameTime, spread);
 
         EconomyAccount.deposit(player, settled.cents());
         feedback(player, Component.translatable("message.soloeconomy.sold",
-                removed, new ItemStack(item).getHoverName(), EconomyAccount.format(settled.cents())), false);
+                removed, good.name(), EconomyAccount.format(settled.cents())), false);
     }
 
     // ------------------------------------------------------------------
@@ -286,15 +297,16 @@ public final class ServerMarketHandler {
         }
 
         Inventory inventory = player.getInventory();
+        Good emerald = Good.of(Items.EMERALD);
 
         if (payload.deposit()) {
-            int held = countInInventory(inventory, Items.EMERALD);
+            int held = countInInventory(inventory, emerald);
             int amount = payload.amount() < 0 ? held : Math.min(payload.amount(), held);
             if (amount <= 0) {
                 feedback(player, Component.translatable("message.soloeconomy.no_emeralds"), true);
                 return;
             }
-            int removed = removeFromInventory(inventory, Items.EMERALD, amount);
+            int removed = removeFromInventory(inventory, emerald, amount);
             EconomyAccount.deposit(player, removed * EconomyAccount.CENTS_PER_EMERALD);
             feedback(player, Component.translatable("message.soloeconomy.deposited", removed), false);
         } else {
@@ -306,7 +318,7 @@ public final class ServerMarketHandler {
                 return;
             }
             EconomyAccount.withdraw(player, amount * EconomyAccount.CENTS_PER_EMERALD);
-            giveItems(player, Items.EMERALD, amount);
+            giveItems(player, emerald, amount);
             feedback(player, Component.translatable("message.soloeconomy.withdrew", amount), false);
         }
 
@@ -318,31 +330,23 @@ public final class ServerMarketHandler {
     // Inventory plumbing
     // ------------------------------------------------------------------
 
-    /**
-     * Items carrying custom components are never tradeable. That one rule covers enchanted gear,
-     * renamed items, damaged tools and - importantly - shulker boxes with things inside, any of
-     * which would otherwise be bought or sold at the price of a plain one.
-     */
-    public static boolean isTradeableStack(ItemStack stack) {
-        return !stack.isEmpty() && stack.getComponentsPatch().isEmpty() && !stack.isDamaged();
-    }
-
-    private static int countInInventory(Inventory inventory, Item item) {
+    /** Only stacks that are exactly this good count; see {@link Good#of(ItemStack)}. */
+    private static int countInInventory(Inventory inventory, Good good) {
         int total = 0;
         for (int slot = 0; slot < TRADEABLE_SLOTS; slot++) {
             ItemStack stack = inventory.getItem(slot);
-            if (stack.getItem() == item && isTradeableStack(stack)) {
+            if (stack.getItem() == good.item() && good.equals(Good.of(stack))) {
                 total += stack.getCount();
             }
         }
         return total;
     }
 
-    private static int removeFromInventory(Inventory inventory, Item item, int count) {
+    private static int removeFromInventory(Inventory inventory, Good good, int count) {
         int remaining = count;
         for (int slot = 0; slot < TRADEABLE_SLOTS && remaining > 0; slot++) {
             ItemStack stack = inventory.getItem(slot);
-            if (stack.getItem() != item || !isTradeableStack(stack)) {
+            if (stack.getItem() != good.item() || !good.equals(Good.of(stack))) {
                 continue;
             }
             int taken = Math.min(remaining, stack.getCount());
@@ -356,12 +360,12 @@ public final class ServerMarketHandler {
         return count - remaining;
     }
 
-    private static void giveItems(ServerPlayer player, Item item, int count) {
+    private static void giveItems(ServerPlayer player, Good good, int count) {
         int remaining = count;
-        int stackLimit = new ItemStack(item).getMaxStackSize();
+        int stackLimit = good.maxStackSize();
         while (remaining > 0) {
             int size = Math.min(remaining, stackLimit);
-            ItemStack stack = new ItemStack(item, size);
+            ItemStack stack = good.stack(size);
             if (!player.getInventory().add(stack)) {
                 // No room left: drop the rest at the player's feet rather than voiding it.
                 player.drop(stack, false);

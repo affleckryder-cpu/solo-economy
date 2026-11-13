@@ -132,6 +132,13 @@
       ]
     },
     {
+      "id": "alchemist",
+      "icon": "minecraft:brewing_stand",
+      "items": [
+        "minecraft:potion", "minecraft:splash_potion", "minecraft:lingering_potion"
+      ]
+    },
+    {
       "id": "tailor",
       "icon": "minecraft:white_wool",
       "items": [
@@ -160,7 +167,7 @@
       "icon": "minecraft:bow",
       "items": [
         "minecraft:stick", "minecraft:flint", "minecraft:feather", "minecraft:string",
-        "minecraft:arrow", "minecraft:spectral_arrow",
+        "minecraft:arrow", "minecraft:spectral_arrow", "minecraft:tipped_arrow",
         "minecraft:bow", "minecraft:crossbow", "minecraft:target"
       ]
     }

@@ -127,6 +127,7 @@ public final class ServerEvents {
                 seeds.untradeable(),
                 MerchantLoader.current(),
                 server.getRecipeManager(),
-                server.registryAccess()));
+                server.registryAccess(),
+                server.potionBrewing()));
     }
 }

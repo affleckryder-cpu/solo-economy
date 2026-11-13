@@ -144,22 +144,22 @@ public class MarketData extends SavedData {
     }
 
     /** What one more unit would cost to buy right now, assembly fee and spread included. */
-    public double spotBuyPrice(Item item, long gameTime, double spread) {
-        return quoteBuy(item, 1, gameTime, spread).exactValue();
+    public double spotBuyPrice(Good good, long gameTime, double spread) {
+        return quoteBuy(good, 1, gameTime, spread).exactValue();
     }
 
     /** What one more unit would pay out right now. Materials only - the market pays no wages. */
-    public double spotSellPrice(Item item, long gameTime, double spread) {
-        return quoteSell(item, 1, gameTime, spread).exactValue();
+    public double spotSellPrice(Good good, long gameTime, double spread) {
+        return quoteSell(good, 1, gameTime, spread).exactValue();
     }
 
     /**
-     * How well supplied this item's materials are: above 1 means glutted and paying badly, below 1
+     * How well supplied this good's materials are: above 1 means glutted and paying badly, below 1
      * means short and paying well. Weighted by each primitive's share of the item's value.
      */
-    public double supplyRatio(Item item, long gameTime) {
+    public double supplyRatio(Good good, long gameTime) {
         MarketCatalog catalog = MarketCatalog.active();
-        MarketCatalog.Bundle bundle = catalog.bundle(item);
+        MarketCatalog.Bundle bundle = catalog.bundle(good);
         if (bundle == null) {
             return 1.0D;
         }
@@ -188,8 +188,8 @@ public class MarketData extends SavedData {
      * sale land one step up the curve from the purchase that preceded it, and in a thin market
      * that one step outruns the spread - buy one, sell one, and pocket the difference, forever.
      */
-    public Quote quoteSell(Item item, int count, long gameTime, double spread) {
-        MarketCatalog.Bundle bundle = MarketCatalog.active().bundle(item);
+    public Quote quoteSell(Good good, int count, long gameTime, double spread) {
+        MarketCatalog.Bundle bundle = MarketCatalog.active().bundle(good);
         if (count <= 0 || bundle == null) {
             return Quote.EMPTY;
         }
@@ -203,8 +203,8 @@ public class MarketData extends SavedData {
         return new Quote(count, total, (long) Math.floor(total * EconomyAccount.CENTS_PER_EMERALD), stocks);
     }
 
-    public Quote quoteBuy(Item item, int count, long gameTime, double spread) {
-        MarketCatalog.Bundle bundle = MarketCatalog.active().bundle(item);
+    public Quote quoteBuy(Good good, int count, long gameTime, double spread) {
+        MarketCatalog.Bundle bundle = MarketCatalog.active().bundle(good);
         if (count <= 0 || bundle == null) {
             return Quote.EMPTY;
         }
@@ -226,8 +226,8 @@ public class MarketData extends SavedData {
      * Largest quantity a given budget (in cents) can buy. Walks the curve rather than dividing by the spot
      * price, because each unit bought drains the materials and pushes the next one up.
      */
-    public int maxAffordable(Item item, long budget, long gameTime, double spread, int limit) {
-        MarketCatalog.Bundle bundle = MarketCatalog.active().bundle(item);
+    public int maxAffordable(Good good, long budget, long gameTime, double spread, int limit) {
+        MarketCatalog.Bundle bundle = MarketCatalog.active().bundle(good);
         if (bundle == null || budget <= 0L) {
             return 0;
         }
@@ -260,13 +260,13 @@ public class MarketData extends SavedData {
     // ------------------------------------------------------------------
 
     /** Commit a sale: the item's materials flood the market and their prices drop. */
-    public Quote commitSell(Item item, int count, long gameTime, double spread) {
-        return commit(quoteSell(item, count, gameTime, spread), gameTime);
+    public Quote commitSell(Good good, int count, long gameTime, double spread) {
+        return commit(quoteSell(good, count, gameTime, spread), gameTime);
     }
 
     /** Commit a purchase: the item's materials leave the market and their prices rise. */
-    public Quote commitBuy(Item item, int count, long gameTime, double spread) {
-        return commit(quoteBuy(item, count, gameTime, spread), gameTime);
+    public Quote commitBuy(Good good, int count, long gameTime, double spread) {
+        return commit(quoteBuy(good, count, gameTime, spread), gameTime);
     }
 
     private Quote commit(Quote quote, long gameTime) {

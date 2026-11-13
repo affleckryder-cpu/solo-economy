@@ -3,7 +3,6 @@ package com.soloeconomy.registry;
 import com.mojang.serialization.Codec;
 import com.soloeconomy.SoloEconomy;
 
-import net.minecraft.resources.ResourceLocation;
 import net.neoforged.bus.api.IEventBus;
 import net.neoforged.neoforge.attachment.AttachmentType;
 import net.neoforged.neoforge.registries.DeferredRegister;
@@ -41,12 +40,13 @@ public final class ModAttachments {
                     .build());
 
     /**
-     * Items this player has unlocked for buying; see Discovery. Stored as ids, not items, so a
-     * removed mod's items don't make the whole set fail to load.
+     * Goods this player has unlocked for buying, by {@code Good.key()}; see Discovery. Stored as
+     * keys, not goods, so a removed mod's items don't make the whole set fail to load. A plain
+     * item's key is its id, which is what this held before potions, so old saves still read.
      */
-    public static final Supplier<AttachmentType<Set<ResourceLocation>>> DISCOVERED = ATTACHMENT_TYPES.register("discovered",
-            () -> AttachmentType.<Set<ResourceLocation>>builder(() -> new HashSet<>())
-                    .serialize(ResourceLocation.CODEC.listOf().<Set<ResourceLocation>>xmap(HashSet::new, List::copyOf))
+    public static final Supplier<AttachmentType<Set<String>>> DISCOVERED = ATTACHMENT_TYPES.register("discovered",
+            () -> AttachmentType.<Set<String>>builder(() -> new HashSet<>())
+                    .serialize(Codec.STRING.listOf().<Set<String>>xmap(HashSet::new, List::copyOf))
                     .copyOnDeath()
                     .build());
 

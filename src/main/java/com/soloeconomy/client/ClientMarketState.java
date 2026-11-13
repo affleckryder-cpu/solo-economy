@@ -1,10 +1,9 @@
 package com.soloeconomy.client;
 
+import com.soloeconomy.market.Good;
 import com.soloeconomy.network.Listing;
 import com.soloeconomy.network.MarketListingsPayload;
 import com.soloeconomy.network.QuotePayload;
-
-import net.minecraft.world.item.Item;
 
 import javax.annotation.Nullable;
 
@@ -18,9 +17,8 @@ public final class ClientMarketState {
     private static long balance;
     private static List<MarketListingsPayload.Merchant> merchants = List.of();
     private static List<Listing> listings = List.of();
-    private static Map<Item, Listing> carried = Map.of();
+    private static Map<Good, Listing> carried = Map.of();
     private static float spread = 0.1F;
-
     @Nullable
     private static QuotePayload quote;
 
@@ -41,8 +39,8 @@ public final class ClientMarketState {
 
     /** Prices for what the player carries, or null for anything no merchant buys. */
     @Nullable
-    public static Listing carried(Item item) {
-        return carried.get(item);
+    public static Listing carried(@Nullable Good good) {
+        return good == null ? null : carried.get(good);
     }
 
     public static List<MarketListingsPayload.Merchant> merchants() {
@@ -57,9 +55,9 @@ public final class ClientMarketState {
                                    List<Listing> newCarried, float newSpread) {
         merchants = newMerchants;
         listings = newListings;
-        Map<Item, Listing> byItem = new HashMap<>();
-        newCarried.forEach(listing -> byItem.put(listing.item(), listing));
-        carried = byItem;
+        Map<Good, Listing> byGood = new HashMap<>();
+        newCarried.forEach(listing -> byGood.put(listing.good(), listing));
+        carried = byGood;
         spread = newSpread;
         // Prices just moved, so any cost preview we were showing is stale.
         quote = null;
@@ -67,8 +65,8 @@ public final class ClientMarketState {
 
     /** The exact totals for the row under the pointer, or null while we are still asking. */
     @Nullable
-    public static QuotePayload quoteFor(Item item) {
-        return quote != null && quote.item() == item ? quote : null;
+    public static QuotePayload quoteFor(Good good) {
+        return quote != null && quote.good().equals(good) ? quote : null;
     }
 
     public static void setQuote(QuotePayload value) {
