@@ -117,7 +117,6 @@ This is an early release.
 - **Modded items** are traded with `openMarket` on or when a datapack lists them under a merchant. Items from modded machines and workbenches need `modRecipes` on, and some may need a price set by hand. **Create** works out of the box with both settings on: zinc, brass and fluid recipes are priced.
 - **The balance display** can be moved to any corner, or hidden, under **Mods → Solo Economy → Config** if it overlaps a minimap.
 - **Built for single-player.** On a server, all players share one market.
-- **English only.**
 
 ---
 
@@ -130,7 +129,7 @@ English and Russian.
 - Minecraft **1.20.1** on **Forge** (47 or newer)
 - Required on **both** client and server
 
-On Forge 1.20.1 the config file is per world: `saves/<world>/serverconfig/soloeconomy-server.toml`. Put a copy in `defaultconfigs` to use it for new worlds.
+On Forge 1.20.1 the config file is per world, not in the `config` folder: `saves/<world>/serverconfig/soloeconomy-server.toml`. It appears the first time you open that world. Put a copy in `defaultconfigs` to use it for new worlds.
 
 ---
 
